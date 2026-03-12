@@ -1,0 +1,24 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// 'Standard' extracodes that implement floating point operations
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+int extracode_fp[100] =
+  {
+    // CODE                       OPERATION      | 1st INSTRUCTION              |  2nd INSTRUCTION    
+    0x00000000,         //  100   TAR 1   X
+    0x00000000,         //  101   TAR 2   Y
+    0x00000000,         //  102   TAR 3   Z
+    0x00000000,         //  103   LINK
+    0x00000000,         //  104   WORK
+    0x60020510,         //  105   Branch to X             | Z->R0 R1                     |  Test R1 = 0
+    0x65032003,         //  106   And Store Link          | if yes, return to program    |  RL -> R0 R1
+    0x61016400,         //  107   in Y if Z <> 0          | R0 R1 -> Y                   |  Branch to X
+    0x68006403,         //  108   Input to X, Disp, Y,Z   | Input to X                   |  Return to Program
+    
+    
+  };
+  

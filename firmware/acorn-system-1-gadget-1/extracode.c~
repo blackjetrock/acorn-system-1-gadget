@@ -1,0 +1,39 @@
+
+#include "switches.h"
+
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+
+#include <ctype.h>
+#include <math.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+#include "pico/stdlib.h"
+#include "hardware/pio.h"
+#include "hardware/dma.h"
+#include "hardware/irq.h"
+#include "hardware/flash.h"
+#include "hardware/clocks.h"
+#include "hardware/structs/bus_ctrl.h"
+
+#define DEBUG_STOP_LOOP while(1) {}
+
+// Some logic to analyse:
+
+#include "hardware/structs/pwm.h"
+#include "pico/multicore.h"
+#include "pico/bootrom.h"
+
+#include "oled.h"
+#include "sdcard.h"
+
+#include "fsms.h"
+#include "esc_fsms.h"
+
+#include "esc.h"
+#include "esc_desktop_display.h"
+
+////////////////////////////////////////////////////////////////////////////////

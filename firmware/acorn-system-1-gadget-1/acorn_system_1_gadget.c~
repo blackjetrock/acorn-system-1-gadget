@@ -1,0 +1,758 @@
+//////////////////////////////////////////////////////////////////////////////
+//
+// Epson HX-20 Cartridge Emulator
+//
+////////////////////////////////////////////////////////////////////////////////
+//
+// Emulates a microcassette
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#include "switches.h"
+#include "version.h"
+
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+
+#include <ctype.h>
+#include <math.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+#include "pico/stdlib.h"
+#include "hardware/pio.h"
+#include "hardware/dma.h"
+#include "hardware/irq.h"
+#include "hardware/flash.h"
+#include "hardware/clocks.h"
+#include "hardware/structs/bus_ctrl.h"
+
+#define DEBUG_STOP_LOOP while(1) {}
+
+// Some logic to analyse:
+
+#include "hardware/structs/pwm.h"
+#include "pico/multicore.h"
+#include "pico/bootrom.h"
+
+#include "oled.h"
+#include "sdcard.h"
+
+#include "esc.h"
+
+////////////////////////////////////////////////////////////////////////////////
+
+void prompt(void);
+void serial_help(void);
+
+////////////////////////////////////////////////////////////////////////////////
+// Microcassette
+
+int pwsw = 0;
+
+volatile int clk_edge_count  = 0;
+volatile int pwsw_edge_count = 0;
+volatile int wd_edge_count   = 0;
+
+volatile int command_register = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+int parameter = 0;
+int keypress = 0;
+
+#define TEXT_PARAMETER_LEN 40
+char text_parameter[TEXT_PARAMETER_LEN+1] = "";
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// GPIOs
+//
+
+const int PIN_SI1  =  0;
+const int PIN_SIO1 =  1;
+const int PIN_SO1  =  2;
+const int PIN_SIO2 =  3;
+const int PIN_SIO3 =  4;
+const int PIN_SIO4 =  5;
+const int PIN_MI1  =  6;
+const int PIN_MO2  =  7;
+const int PIN_MO1  =  8;
+const int PIN_KEY0 =  9;
+const int PIN_KEY1 =  10;
+const int PIN_KEY2 =  11;
+const int PIN_KEY3 =  12;
+
+// Pin assignments when emulating microcassette
+
+#define PIN_RD_WE      PIN_SI1
+#define PIN_CNT_HSW    PIN_SIO1
+#define PIN_WD         PIN_SO1
+#define PIN_CLK        PIN_SIO2
+#define PIN_CMMND      PIN_SIO3
+#define PIN_PWSW       PIN_SIO4
+#define PIN_MCMT_CNT   PIN_MI1
+
+
+void set_gpio_output(const int gpio)
+{
+  gpio_init(gpio);
+  gpio_set_dir(gpio, GPIO_OUT);
+}
+
+void set_gpio_input(const int gpio)
+{
+  gpio_init(gpio);
+  gpio_set_dir(gpio, GPIO_IN);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+  
+////////////////////////////////////////////////////////////////////////////////
+
+void cli_boot_mass(void)
+{
+  reset_usb_boot(0,0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void prompt(void)
+{
+  printf("\n\n(Text Parameter:'%s'", text_parameter);
+  printf("\n(Parameter %d >",
+	 parameter);
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//
+// We allow digits to enter a new value for the parameter
+
+void cli_enter_parameter()
+{
+  int  key;
+  int done = 0;
+
+  printf("\nEnter parameter: (ESC or <RETURN> to exit)");
+  
+  parameter = 0;
+  
+  while(!done)
+    {
+      if( ((key = getchar_timeout_us(1000)) != PICO_ERROR_TIMEOUT))
+	{
+	  switch(key)
+	    {
+	    case '0':
+	    case '1':
+	    case '2':
+	    case '3':
+	    case '4':
+	    case '5':
+	    case '6':
+	    case '7':
+	    case '8':
+	    case '9':
+	      parameter *= 10;
+	      parameter += (key - '0');
+	      prompt();
+	      break;
+
+	    case 27:
+	    case 13:
+	    case 10:
+	      done = 1;
+	      break;
+	      
+	    default:
+	      break;
+	    }
+	}
+      else
+	{
+	  // I have found that I need to send something if the serial USB times out
+	  // otherwise I get lockups on the serial communications.
+	  // So, if we get a timeout we send a space and backspace it. And
+	  // flush the stdio, but that didn't fix the problem but seems like a good idea.
+	  stdio_flush();
+	  //printf(" \b");
+	}
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Reads and prints a file
+//
+
+int cat_file(char *fn)
+{
+  char line[MAX_FILE_LINE];
+  char fileline[MAX_FILE_LINE];
+
+  mount_sd();
+  
+  if( !cd_to_dir(HX20_DIR) )
+    {
+      unmount_sd();
+      return(0);
+    }
+  
+  sprintf("Reading '%s'", fn);
+
+  FF_FILE *fp = ff_fopen(fn, "r");
+
+  if (fp == NULL)
+    {
+      printf("Failed to open:%s", fn);
+      unmount_sd();
+      return(0);
+    }
+  
+  // Get lines from the file
+  while( ff_fgets(&(fileline[0]), sizeof(fileline)-1, fp) != NULL )
+    {
+      printf("%s", fileline);
+    }
+  
+  ff_fclose(fp);
+  unmount_sd();
+  return(1);
+}
+//------------------------------------------------------------------------------
+
+void cli_version(void)
+{
+  printf("\nVersion:1.1.%d Compile time:%s %s\n", VERSION_INC, __DATE__, __TIME__);
+}
+
+void cli_digit(void)
+{
+  printf("\n%d", keypress);
+}
+
+void cli_information(void)
+{
+
+  printf("\nPWSW:        %d", pwsw);
+  printf("\nPIN_RD_WE:   %d", gpio_get(PIN_RD_WE));
+  printf("\nPIN_CNT_HSW: %d", gpio_get(PIN_CNT_HSW));
+  printf("\nPIN_WD:      %d", gpio_get(PIN_WD));
+  printf("\nPIN_CLK:     %d", gpio_get(PIN_CLK));
+  printf("\nPIN_CMMND:   %d", gpio_get(PIN_CMMND));
+  printf("\nPIN_PWSW:    %d", gpio_get(PIN_PWSW));
+  //  printf("\nPIN_MCMT_CNT:%d", gpio_get(PIN_MCMT_CNT));
+
+  
+  printf("\n");
+
+  printf("\nWD   edges: %d",  wd_edge_count);
+  printf("\nCLK  edges: %d",  clk_edge_count);
+  printf("\nPWSW edges: %d", pwsw_edge_count);
+
+  char *cmdstr = "???";
+  
+  switch(command_register)
+    {
+    case 0x00:
+      cmdstr = "STOP";
+      break;
+    case 0x0A:
+      cmdstr = "REW";
+      break;
+    case 0x01:
+      cmdstr = "PLAY";
+      break;
+    case 0x11:
+      cmdstr = "FF";
+      break;
+    case 0x81:
+      cmdstr = "REC";
+      break;
+    case 0x18:
+      cmdstr = "BRAKE";
+      break;
+    case 0x20:
+      cmdstr = "HEAD LOAD";
+      break;
+    case 0x40:
+      cmdstr = "Head MOTOR BRAKE";
+      break;
+    }
+  
+  printf("\nCommand register:%02X (%s)", command_register, cmdstr);
+}
+
+int toggle = 0;
+
+void cli_toggle_mcmt(void)
+{
+  if( toggle )
+    {
+      printf("\nHigh");
+      set_gpio_output(PIN_MCMT_CNT);
+
+      //set_gpio_output(PIN_MCMT_CNT);
+      gpio_put(PIN_MCMT_CNT, 1);
+
+    }
+  else
+    {
+      printf("\nLow");
+      set_gpio_output(PIN_MCMT_CNT);
+      gpio_put(PIN_MCMT_CNT, 0);
+    }
+  
+  toggle = !toggle;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+// Serial loop command structure
+
+typedef void (*SERIAL_FPTR)(void);
+
+typedef struct
+{
+  char key;
+  char *desc;
+  SERIAL_FPTR fn;
+} SERIAL_COMMAND;
+
+SERIAL_COMMAND serial_cmds[] =
+  {
+    {
+      '?',
+      "Serial command help",
+      serial_help,
+    },
+    {
+      '!',
+      "Boot to mass storage",
+      cli_boot_mass,
+    },
+    {
+      'i',
+      "Information",
+      cli_information,
+    },
+    {
+      'z',
+      "Enter parameter value",
+      cli_enter_parameter,
+    },
+    {
+      'v',
+      "Version",
+      cli_version,
+    },
+    {
+      '0',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      '1',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      '2',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      '3',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      '4',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      '5',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      '6',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      '7',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      '8',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      '9',
+      "*Digit",
+      cli_digit,
+    },
+    {
+      't',
+      "Toggle mcmt",
+      cli_toggle_mcmt,
+    },
+  };
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Serial CLI Handling
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int pcount = 0;
+int periodic_read = 0;
+
+void serial_loop()
+{
+  int  key;
+  
+  if( ((key = getchar_timeout_us(1000)) != PICO_ERROR_TIMEOUT))
+    {
+      for(int i=0; i<sizeof(serial_cmds)/sizeof(SERIAL_COMMAND);i++)
+	{
+	  if( serial_cmds[i].key == key )
+	    {
+#if DEBUG_SERIAL
+	      printf("\nKey:%d (0x%02X)", key, key);
+#endif
+	      keypress = key;
+	      (*serial_cmds[i].fn)();
+	      prompt();
+	      break;
+	    }
+	}
+    }
+}
+
+void serial_help(void)
+{
+  printf("\n");
+  
+  for(int i=0; i<sizeof(serial_cmds)/sizeof(SERIAL_COMMAND);i++)
+    {
+      if( *(serial_cmds[i].desc) != '*' )
+	{
+	  printf("\n%c:   %s", serial_cmds[i].key, serial_cmds[i].desc);
+	}
+    }
+  printf("\n0-9: Enter parameter digit");
+}
+
+
+void prompt_breakpoint(void)
+{
+  printf("\n\n(Text Parameter:'%s'", text_parameter);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//    Core 1 
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Emulate a cassette drive
+//
+//
+
+
+int last_pwsw = 1;
+int last_clk = 0;
+int last_wd = 0;
+
+int clk = 0;
+int wd = 0;
+int cmmnd = 0;
+int cnt = 0;
+int cnt_counter = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Core 1 handles the emulation of either a ROM cartridge or a cvassette drive
+//
+//
+
+#define TICK 0
+
+uint32_t now = 0;
+uint32_t last_time = 0;
+
+void core1_main(void)
+{
+#if TICK
+  int i = 0;
+#endif
+  
+  
+  while(1)
+    {
+
+      // Update timed values
+      now = time_us_32();
+
+      if( (now - last_time) > 250000 )
+        {
+          // 250ms hs elapsed, update cnt
+          cnt = !cnt;
+          last_time = now;
+        }
+      
+#if TICK
+      i++;
+      if( (i % 1000000) == 0 )
+        {
+          printf("\nCore1 tick psws:%d", pwsw);
+        }
+#endif
+
+      
+      pwsw    = gpio_get(PIN_PWSW);
+      clk     = gpio_get(PIN_CLK);
+      wd      = gpio_get(PIN_WD);
+      cmmnd   = gpio_get(PIN_CMMND);
+      
+      // Check power switch
+      if( last_pwsw != pwsw )
+        {
+          //      printf("\n                   PWSW change: %d  %llu", pwsw, to_us_since_boot(get_absolute_time()));
+          pwsw_edge_count++;
+        }
+
+      // Update the photo detector COUNT signal. When the tape is moving, it causes a repeating signal. Not sure exactly
+      // what this is, but we maintain a CNT signal.
+      
+      if( last_clk != clk )
+        {
+          clk_edge_count++;
+
+          if( clk == 1 )
+            {
+              // Shift another data bit into command register
+              command_register >>=1;
+              command_register += cmmnd;
+            }
+          //printf("\n                   CLK change: %d  %llu", clk, to_us_since_boot(get_absolute_time()));
+        }
+
+
+
+      if( clk == 0 )
+        {
+          // Set up the signals that should be present when the clock is low
+          // HSW and WE
+          
+        }
+      else
+        {
+          // Set up the signals that should be present when the clock is high
+          // COUNT and RD
+          gpio_put(PIN_CNT_HSW, cnt);
+        }
+      
+      if( last_wd != wd )
+        {
+          wd_edge_count++;
+        }
+      
+      last_pwsw = pwsw;
+      last_clk = clk;
+      last_wd = wd;
+      
+      if (pwsw)
+        {
+          // Power on
+          gpio_put(PIN_MCMT_CNT, cnt);
+        }
+      else
+        {
+          // Power off
+          
+          // GPIOs need to indicate cassette is present and set up in idle states
+          
+          gpio_put(PIN_SI1,  0);
+          gpio_put(PIN_SIO1, 0);
+          
+          // Make high to signal MCT is present
+          //set_gpio_input(PIN_MCMT_CNT);
+          gpio_put(PIN_MCMT_CNT, 1);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+int main(void)
+{
+#if 0
+  // Do nothing, GPIOs all inputs
+  while(1)
+    {
+    }
+#endif
+  
+  ////////////////////////////////////////////////////////////////////////////////
+  // Set up GPIOs
+
+  set_gpio_output(PIN_RD_WE);
+  set_gpio_output(PIN_CNT_HSW);
+  set_gpio_input(PIN_WD);
+  set_gpio_input(PIN_CLK);
+  set_gpio_input(PIN_CMMND);
+  set_gpio_input(PIN_PWSW);
+  set_gpio_output(PIN_MCMT_CNT);
+  set_gpio_input(PIN_MO2);
+  set_gpio_input(PIN_MO1);
+
+
+  gpio_put(PIN_RD_WE, 1);
+  gpio_put(PIN_CNT_HSW, 0);
+    
+#if 1
+  // Force low to signal MCT
+  set_gpio_output(PIN_MCMT_CNT);
+  gpio_put(PIN_MCMT_CNT, 1);
+#else
+  // Force high
+  set_gpio_input(PIN_MCMT_CNT);
+#endif
+  
+  ////////////////////////////////////////////////////////////////////////////////
+  //
+  // Overclock as needed
+  //
+  ////////////////////////////////////////////////////////////////////////////////
+  
+#define OVERCLOCK 135000
+  //#define OVERCLOCK 200000
+  //#define OVERCLOCK 270000
+  //#define OVERCLOCK 360000
+  
+#if OVERCLOCK > 270000
+  /* Above this speed needs increased voltage */
+  vreg_set_voltage(VREG_VOLTAGE_1_20);
+  sleep_ms(1000);
+#endif
+  
+  /* Overclock */
+  set_sys_clock_khz( OVERCLOCK, 1 );
+
+  //stdio_init_all();
+  stdio_usb_init();
+
+  // Run the shift register touch key scanning on the second core
+  multicore_launch_core1(core1_main);
+
+  //sleep_ms(3000);
+
+  printf("\n");
+  printf("\n                                  ********************************************");
+  printf("\n                                  *        Epson HX-20 Cartridge Emulator    *");
+  printf("\n                                  ********************************************");
+  printf("\n");
+  printf("\nVersion:1.1.%d Compile time:%s %s", VERSION_INC, __DATE__, __TIME__);
+  printf("\n");
+  
+#if OLED_ON
+  // Set up OLED display
+  i2c_init(&i2c_bus_0);
+  
+  oled_setup(&oled0);
+#endif
+  
+  // Sets sd_ok flag for later use
+#if SD_ON   
+
+  printf("\nInitialising SD card driver...");
+
+#define SD_CARD 1
+
+  // Initialise SD card driver
+  sd_init_driver();
+
+  // Mount and unmount the SD card to set the sd_ok_flag up
+  mount_sd();
+  unmount_sd();
+  
+  oled_set_xy(&oled0, 0,21);
+  if( sd_ok_flag )
+    {
+      oled_display_string(&oled0, "SD card OK");
+      printf("\nSD card OK");
+    }
+  else
+    {
+      oled_display_string(&oled0, "SD card NOT OK");
+      printf("\nSD card NOT OK");
+    }
+
+  mount_sd();
+  if( !cd_to_dir("/HX20") )
+    {
+      printf("\nFailed to cd to /HX20 directory");
+      printf("\n%s", sd_error);
+    }
+  else
+    {
+      printf("\n/HX20 directory found");
+    }
+  unmount_sd();
+
+  sleep_ms(1000);
+#endif
+
+#if OLED_ON
+  // Overall loop, which contains the polling loop and the menu loop
+  oled_clear_display(&oled0);
+  
+  oled_set_xy(&oled0, 20, 0);
+  oled_display_string(&oled0, "HX20");
+
+  oled_set_xy(&oled0, 30, 8);
+  oled_display_string(&oled0, "Cartridge");
+
+  oled_set_xy(&oled0, 30, 16);
+  oled_display_string(&oled0, "Emulator");
+#endif
+
+  // Run the shift register touch key scanning on the second core
+  //  multicore_launch_core1(core1_main);
+
+
+  while(1)
+    {
+#if DEBUG_LOOP
+      printf("\nLoop");
+#endif
+      
+      serial_loop();
+
+    }
+}

@@ -1,0 +1,12 @@
+typedef enum EXTRACODE_ID
+  {
+    EXTRACODE_STANDARD = 1;
+  };
+
+typedef struct
+{
+  EXTRACODE_ID id;
+  char *desc;
+  uint32_t csum;
+} CSUM_ID;
+

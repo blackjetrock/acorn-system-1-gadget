@@ -1,0 +1,7 @@
+set f [open version.h]
+set txt [read $f]
+close $f
+
+if { [regexp {#define VERSION_INC ([0-9]+)} $txt vale]}  {
+    puts "Value:$val"
+}
