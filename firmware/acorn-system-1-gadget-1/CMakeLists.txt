@@ -1,3 +1,4 @@
+set(PROJECT acorn_system_1_gadget)
 cmake_minimum_required(VERSION 3.13)
 
 set(CMAKE_C_STANDARD 11)
@@ -22,6 +23,7 @@ set(PICO_COPY_TO_RAM 1)
 set(PICO_CXX_ENABLE_EXCEPTIONS 1)
 
 add_compile_definitions(PICO_STACK_SIZE=10000)
+
 add_compile_definitions(PICO_CORE1_STACK_SIZE=4000)
 add_compile_definitions(PICO_USE_STACK_GUARDS=1)
 
@@ -42,6 +44,7 @@ add_executable(acorn_system_1_gadget
   #match_token.c
   oled.c
   sdcard.c
+  hw_config.c
   #extracode.c
   #extracode_fp.c
   #extracode_basic.c
@@ -67,6 +70,9 @@ ENDIF()
 
 target_compile_definitions(acorn_system_1_gadget PUBLIC N_SD_CARDS=${N_SD_CARDS})
 
+target_include_directories(${PROJECT} PUBLIC
+  ${CMAKE_CURRENT_LIST_DIR}
+)
 
 
 # Add the standard include files to the build

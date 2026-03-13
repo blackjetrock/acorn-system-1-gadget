@@ -1,0 +1,105 @@
+./examples/command_line/src/#command.cpp#:    FRESULT fr = f_rename(argv[0], argv[1]);
+./examples/command_line/src/#command.cpp#:    if (FR_OK != fr) printf("f_rename error: %s (%d)\n", FRESULT_str(fr), fr);
+./examples/command_line/src/command.cpp:    FRESULT fr = f_rename(argv[0], argv[1]);
+./examples/command_line/src/command.cpp:    if (FR_OK != fr) printf("f_rename error: %s (%d)\n", FRESULT_str(fr), fr);
+./examples/command_line/build/command_line.elf.map: .text.f_rename
+./examples/command_line/build/command_line.elf.map:                0x10009f70                f_rename
+./examples/command_line/build/command_line.elf.map: .text.ff_rename
+./examples/command_line/build/command_line.elf.map:                0x10010d50                ff_rename
+./examples/command_line/build/command_line.dis:10000760:	f009 fc06 	bl	10009f70 <f_rename>
+./examples/command_line/build/command_line.dis:10002e90:	f00d ff5e 	bl	10010d50 <ff_rename>
+./examples/command_line/build/command_line.dis:10002f7e:	f00d fee7 	bl	10010d50 <ff_rename>
+./examples/command_line/build/command_line.dis:10002f8e:	f00d fedf 	bl	10010d50 <ff_rename>
+./examples/command_line/build/command_line.dis:10002fc2:	f00d fec5 	bl	10010d50 <ff_rename>
+./examples/command_line/build/command_line.dis:10002fcc:	f00d fec0 	bl	10010d50 <ff_rename>
+./examples/command_line/build/command_line.dis:10009f70 <f_rename>:
+./examples/command_line/build/command_line.dis:10009f7a:	b139      	cbz	r1, 10009f8c <f_rename+0x1c>
+./examples/command_line/build/command_line.dis:10009f7e:	e001      	b.n	10009f84 <f_rename+0x14>
+./examples/command_line/build/command_line.dis:10009f82:	d05a      	beq.n	1000a03a <f_rename+0xca>
+./examples/command_line/build/command_line.dis:10009f8a:	d8f9      	bhi.n	10009f80 <f_rename+0x10>
+./examples/command_line/build/command_line.dis:10009f98:	b118      	cbz	r0, 10009fa2 <f_rename+0x32>
+./examples/command_line/build/command_line.dis:10009fb2:	f000 80d1 	beq.w	1000a158 <f_rename+0x1e8>
+./examples/command_line/build/command_line.dis:10009fd0:	bb50      	cbnz	r0, 1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:10009fda:	f040 80bb 	bne.w	1000a154 <f_rename+0x1e4>
+./examples/command_line/build/command_line.dis:10009fde:	4bb1      	ldr	r3, [pc, #708]	@ (1000a2a4 <f_rename+0x334>)
+./examples/command_line/build/command_line.dis:10009fec:	b139      	cbz	r1, 10009ffe <f_rename+0x8e>
+./examples/command_line/build/command_line.dis:10009ff0:	d105      	bne.n	10009ffe <f_rename+0x8e>
+./examples/command_line/build/command_line.dis:10009ff6:	d102      	bne.n	10009ffe <f_rename+0x8e>
+./examples/command_line/build/command_line.dis:10009ffc:	d013      	beq.n	1000a026 <f_rename+0xb6>
+./examples/command_line/build/command_line.dis:1000a000:	b139      	cbz	r1, 1000a012 <f_rename+0xa2>
+./examples/command_line/build/command_line.dis:1000a004:	d105      	bne.n	1000a012 <f_rename+0xa2>
+./examples/command_line/build/command_line.dis:1000a00a:	d102      	bne.n	1000a012 <f_rename+0xa2>
+./examples/command_line/build/command_line.dis:1000a010:	d009      	beq.n	1000a026 <f_rename+0xb6>
+./examples/command_line/build/command_line.dis:1000a014:	b1c9      	cbz	r1, 1000a04a <f_rename+0xda>
+./examples/command_line/build/command_line.dis:1000a018:	d117      	bne.n	1000a04a <f_rename+0xda>
+./examples/command_line/build/command_line.dis:1000a01e:	d114      	bne.n	1000a04a <f_rename+0xda>
+./examples/command_line/build/command_line.dis:1000a024:	d111      	bne.n	1000a04a <f_rename+0xda>
+./examples/command_line/build/command_line.dis:1000a03e:	d1a5      	bne.n	10009f8c <f_rename+0x1c>
+./examples/command_line/build/command_line.dis:1000a048:	e7a0      	b.n	10009f8c <f_rename+0x1c>
+./examples/command_line/build/command_line.dis:1000a04c:	b139      	cbz	r1, 1000a05e <f_rename+0xee>
+./examples/command_line/build/command_line.dis:1000a050:	d105      	bne.n	1000a05e <f_rename+0xee>
+./examples/command_line/build/command_line.dis:1000a056:	d102      	bne.n	1000a05e <f_rename+0xee>
+./examples/command_line/build/command_line.dis:1000a05c:	d0e3      	beq.n	1000a026 <f_rename+0xb6>
+./examples/command_line/build/command_line.dis:1000a064:	d07f      	beq.n	1000a166 <f_rename+0x1f6>
+./examples/command_line/build/command_line.dis:1000a0b0:	d054      	beq.n	1000a15c <f_rename+0x1ec>
+./examples/command_line/build/command_line.dis:1000a0b4:	d1b8      	bne.n	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a0c0:	d1b2      	bne.n	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a10e:	f140 8095 	bpl.w	1000a23c <f_rename+0x2cc>
+./examples/command_line/build/command_line.dis:1000a116:	f000 8091 	beq.w	1000a23c <f_rename+0x2cc>
+./examples/command_line/build/command_line.dis:1000a134:	d20c      	bcs.n	1000a150 <f_rename+0x1e0>
+./examples/command_line/build/command_line.dis:1000a14c:	f040 808b 	bne.w	1000a266 <f_rename+0x2f6>
+./examples/command_line/build/command_line.dis:1000a152:	e769      	b.n	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a156:	e767      	b.n	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a15a:	e71e      	b.n	10009f9a <f_rename+0x2a>
+./examples/command_line/build/command_line.dis:1000a160:	d07c      	beq.n	1000a25c <f_rename+0x2ec>
+./examples/command_line/build/command_line.dis:1000a164:	e760      	b.n	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a190:	d1ee      	bne.n	1000a170 <f_rename+0x200>
+./examples/command_line/build/command_line.dis:1000a1aa:	d153      	bne.n	1000a254 <f_rename+0x2e4>
+./examples/command_line/build/command_line.dis:1000a1b0:	d1d7      	bne.n	1000a162 <f_rename+0x1f2>
+./examples/command_line/build/command_line.dis:1000a1b6:	d1d4      	bne.n	1000a162 <f_rename+0x1f2>
+./examples/command_line/build/command_line.dis:1000a1c2:	f47f af31 	bne.w	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a1fe:	d1ee      	bne.n	1000a1de <f_rename+0x26e>
+./examples/command_line/build/command_line.dis:1000a238:	f47f aef6 	bne.w	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a246:	f47f aeef 	bne.w	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a252:	e6e9      	b.n	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a256:	f47f aee7 	bne.w	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a25a:	e7ad      	b.n	1000a1b8 <f_rename+0x248>
+./examples/command_line/build/command_line.dis:1000a260:	f47f af7f 	bne.w	1000a162 <f_rename+0x1f2>
+./examples/command_line/build/command_line.dis:1000a264:	e727      	b.n	1000a0b6 <f_rename+0x146>
+./examples/command_line/build/command_line.dis:1000a270:	f47f aeda 	bne.w	1000a028 <f_rename+0xb8>
+./examples/command_line/build/command_line.dis:1000a27a:	d1df      	bne.n	1000a23c <f_rename+0x2cc>
+./examples/command_line/build/command_line.dis:1000a28e:	d105      	bne.n	1000a29c <f_rename+0x32c>
+./examples/command_line/build/command_line.dis:1000a2a2:	e7cb      	b.n	1000a23c <f_rename+0x2cc>
+./examples/command_line/build/command_line.dis:10010d50 <ff_rename>:
+./examples/command_line/build/command_line.dis:10010d56:	b992      	cbnz	r2, 10010d7e <ff_rename+0x2e>
+./examples/command_line/build/command_line.dis:10010d5a:	f7f9 f909 	bl	10009f70 <f_rename>
+./examples/command_line/build/command_line.dis:10010d66:	d810      	bhi.n	10010d8a <ff_rename+0x3a>
+./examples/command_line/build/command_line.dis:10010d6e:	4a09      	ldr	r2, [pc, #36]	@ (10010d94 <ff_rename+0x44>)
+./examples/command_line/build/command_line.dis:10010d88:	e7e6      	b.n	10010d58 <ff_rename+0x8>
+./examples/command_line/build/command_line.dis:10010d90:	e7f1      	b.n	10010d76 <ff_rename+0x26>
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c: * Examples and basic tests of the ff_rename() function.
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c:static void prvTest_ff_rename( const char *pcMountPath );
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c:	prvTest_ff_rename( pcMountPath );
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c:static void prvTest_ff_rename( const char *pcMountPath )
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c:	iReturned = ff_rename( "file1.bin", "file2.bin", pdFALSE );
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c:	iReturned = ff_rename( "source.txt", "../destination_dir/destination.txt", pdFALSE );
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c:	iReturned = ff_rename( "source.txt", "../destination_dir/destination.txt", pdFALSE );
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c:		FF_PRINTF("ff_rename error: %s (%d)\n", strerror(errno), errno);
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c:	iReturned = ff_rename( "source.txt2", "../destination_dir/destination.txt", pdFALSE );
+./examples/command_line/tests/ff_stdio_tests_with_cwd.c:	iReturned = ff_rename( "source.txt2", "../destination_dir/destination.txt", pdTRUE );
+./examples/unix_like/include/ffconf.h:/  f_unlink(), f_mkdir(), f_chmod(), f_rename(), f_truncate(), f_getfree()
+./examples/unix_like/include/ffconf.h:/   1: f_stat(), f_getfree(), f_unlink(), f_mkdir(), f_truncate() and f_rename()
+./include/FatFsSd.h:        return f_rename(path_old, path_new);
+./src/ff15/source/!ffconf.h:/  f_unlink(), f_mkdir(), f_chmod(), f_rename(), f_truncate(), f_getfree()
+./src/ff15/source/!ffconf.h:/   1: f_stat(), f_getfree(), f_unlink(), f_mkdir(), f_truncate() and f_rename()
+./src/ff15/source/00history.txt:  Added f_rename().
+./src/ff15/source/00history.txt:  2nd argument of f_rename() can have a drive number and it will be ignored.
+./src/ff15/source/00history.txt:  Made f_rename() be able to rename objects with the same name but case.
+./src/ff15/source/ff.c:FRESULT f_rename (
+./src/ff15/source/ff.h:FRESULT f_rename (const TCHAR* path_old, const TCHAR* path_new);	/* Rename/Move a file or directory */
+./src/include/ff_stdio.h:int ff_rename( const char *pcOldName, const char *pcNewName, int bDeleteIfExists );
+./src/include/ffconf.h:/  f_unlink(), f_mkdir(), f_chmod(), f_rename(), f_truncate(), f_getfree()
+./src/include/ffconf.h:/   1: f_stat(), f_getfree(), f_unlink(), f_mkdir(), f_truncate() and f_rename()
+./src/src/ff_stdio.c:int ff_rename(const char *pcOldName, const char *pcNewName,
+./src/src/ff_stdio.c:    // FRESULT f_rename (
+./src/src/ff_stdio.c:    FRESULT fr = f_rename(pcOldName, pcNewName);

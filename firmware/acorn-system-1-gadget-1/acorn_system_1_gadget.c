@@ -58,6 +58,9 @@ volatile int wd_edge_count   = 0;
 
 volatile int command_register = 0;
 
+volatile uint8_t rom_data[8192];
+#define ADDRESS_MASK  255
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int parameter = 0;
@@ -84,10 +87,13 @@ const int PIN_NRST_DRV  =  8;
 const int PIN_NMI_DRV   =  9;
 const int PIN_IRQ_DRV   =  10;
 const int PIN_NWDS      =  11;
-const int PIN_NRDS      =  11;
-const int PIN_SYNC      =  11;
-const int PIN_PHI2      =  11;
-const int PIN_RW        =  11;
+const int PIN_NRDS      =  12;
+const int PIN_SYNC      =  13;
+const int PIN_PHI2      =  14;
+const int PIN_RW        =  15;
+
+#define PIN_BITNUM_NWDS    11
+#define PIN_BITNUM_NRDS    12
 
 // SD card GPIOs here
 const int PIN_K3        =  28;
@@ -404,7 +410,201 @@ void prompt_breakpoint(void)
   printf("\n\n(Text Parameter:'%s'", text_parameter);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
+//-----------------------------------------------------------------------------
+//
+// Put a value on the data bus
+
+inline void set_data(BYTE data)
+{
+  int states;
+  int dat = data & 0xff;
+  
+  // Direct register access to make things faster
+  sio_hw->gpio_set = (  dat  << 0);
+  sio_hw->gpio_clr = ((dat ^ 0xFF) << 0);
+}
+
+
+inline void set_data_inputs(void)
+{
+  sio_hw->gpio_oe_clr = 0x000000FF;
+}
+
+inline void set_data_outputs(void)
+{
+  sio_hw->gpio_oe_set = 0x000000FF;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Emulate a RAM chip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#define MSG_IN_CORE1 0
+
+void ram_emulate(void)
+{
+  
+  //printf("\nDisabling interrupts...\n");
+
+  irq_set_mask_enabled( 0xFFFFFFFF, false );
+
+  //printf("\nDisabled interrupts...\n");
+  while(1)
+    {
+      uint32_t gpio_states;
+      uint32_t gpio_hi_states;
+      
+      BYTE db;
+      unsigned int addr;
+
+      gpio_states     = sio_hw->gpio_in;
+      gpio_hi_states  = sio_hw->gpio_hi_in;
+      
+#if EMULATE_LOOP_CNT
+      emulate_loops++;
+#endif
+
+      // No CE, we look at address ranges.
+      if( (gpio_hi_states & 0xFF00) == 0xB000 )
+      	{
+          // Address matches
+          
+#if 1
+	  printf("\nS");
+#endif
+	  // Is this a read or a write?
+	  if( (gpio_states & ( 1<< PIN_NWDS))==0 )
+	    {
+              // Write
+              
+#if 1
+	      printf("\nW");
+#endif
+	      // Write
+	      // data lines inputs
+	      //set_data_inputs();
+
+	      // Wait for CE to go high then latch data
+	      while( (gpio_states & ((1 << PIN_NWDS) | (1<< PIN_NRDS))) != ((1 << PIN_NWDS) | (1<< PIN_NRDS)) )
+                //                while( !((gpio_states = sio_hw->gpio_in) & (1 << CE_PIN)) )
+		{
+		}
+	      addr = (gpio_states >> 8) & ADDRESS_MASK;
+
+	      rom_data[addr] = (gpio_states >> 0) & 0xFF;
+
+#if MSG_IN_CORE1
+	      printf("\nD:%02X", rom_data[addr]);
+#endif
+	      
+#if TRACE_ON	        
+	      if( trace_on)
+		{
+		  if( addr_trace_index < MAX_ADDR_TRACE )
+		    {
+		      int tv = addr;
+		      addr_trace[addr_trace_index] = tv;
+		      data_trace[addr_trace_index] = rom_data[addr];
+		      flag_trace[addr_trace_index] = FLAG_TRACE_WR;
+		      addr_trace_index++;
+		    }
+		}
+#endif
+	    }
+	  else
+	    {
+#if 1
+	      printf("\nR");
+#endif
+	      // Read
+	      // data lines outputs
+	      set_data_outputs();
+	      
+	      // ROM emulation so always a read of us
+	      // get address
+	      addr = (gpio_hi_states >> 8) & ADDRESS_MASK;
+	      
+	      // Get data and present it on bus
+	      set_data(rom_data[addr]);
+#if MSG_IN_CORE1
+	      printf("\nD:%02X", rom_data[addr]);
+#endif
+
+#if TRACE_ON	        
+	      if( trace_on)
+		{
+		  if( addr_trace_index < MAX_ADDR_TRACE )
+		    {
+		      int tv = addr;
+		      addr_trace[addr_trace_index] = tv;
+		      data_trace[addr_trace_index] = rom_data[addr];
+		      flag_trace[addr_trace_index] = FLAG_TRACE_RD;
+		      addr_trace_index++;
+		    }
+		}
+#endif
+	    }	  
+	  //set_data(0xF8);
+
+#if 0	  
+	  // Trace address 
+	  if( addr == 3 )
+	    {
+	      trace_on = 1;
+	    }
+	  
+	  if( trace_on)
+	    {
+	      if( addr_trace_index < MAX_ADDR_TRACE )
+		{
+		  int tv = addr;
+		  if( addr_trace[addr_trace_index] == tv )
+		    {
+		    }
+		  else
+		    {
+		      addr_trace_index++;
+		      addr_trace[addr_trace_index] = tv;
+		    }
+		  //addr_trace_index %= MAX_ADDR_TRACE;
+		  
+		}
+	    }
+	  number_ce_assert++;
+
+#endif
+#if 1
+	  
+	  // Wait for CE to be de-asserted
+	  while(1)
+	    {
+
+	      gpio_states = sio_hw->gpio_in;
+
+#if MSG_IN_CORE1
+	      printf("\nWAIT %08X", gpio_states);
+	      printf("  %02X", gpio_get(CE_PIN));
+#endif
+	      // We look for CE
+	      if( (gpio_states & ((1 << PIN_NWDS) | (1<< PIN_NRDS))) == ((1 << PIN_NWDS) | (1<< PIN_NRDS)) )
+		{
+		  // CE high, we are not selected
+		  // data lines inputs
+		  set_data_inputs();
+#if MSG_IN_CORE1
+		  printf("\nDONE WAIT");
+#endif
+		  break;
+		}
+	    }
+#endif
+      	}
+    }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -517,7 +717,7 @@ int main(void)
   stdio_usb_init();
 
   // Run the shift register touch key scanning on the second core
-  multicore_launch_core1(core1_main);
+  multicore_launch_core1(ram_emulate);
 
   //sleep_ms(3000);
 

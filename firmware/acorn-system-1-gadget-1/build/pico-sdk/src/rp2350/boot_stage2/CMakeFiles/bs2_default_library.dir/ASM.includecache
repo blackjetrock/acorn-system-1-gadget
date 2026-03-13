@@ -1,0 +1,10 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/build/pico-sdk/src/rp2350/boot_stage2/bs2_default_padded_checksummed.S
+
