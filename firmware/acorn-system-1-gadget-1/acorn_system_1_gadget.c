@@ -58,8 +58,10 @@ volatile int wd_edge_count   = 0;
 
 volatile int command_register = 0;
 
-volatile uint8_t rom_data[8192];
-#define ADDRESS_MASK  255
+// Shadow of entire memory space
+volatile uint8_t rom_data[65536];
+
+#define ADDRESS_MASK  0xFFFF
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,6 +142,33 @@ void set_gpio_input(const int gpio)
 void cli_boot_mass(void)
 {
   reset_usb_boot(0,0);
+}
+
+void cli_do_reset(void)
+{
+  printf("\nResetting...");
+  gpio_put(PIN_NRST_DRV, 1);
+  sleep_ms(50);
+  gpio_put(PIN_NRST_DRV, 0);
+
+  printf("\nDone");
+  
+}
+
+void cli_dump_ram(void)
+{
+  for(int a=0; a<65536; a++)
+    {
+      if( (a % 64) == 0 )
+        {
+          printf("\n%04X: ", a);
+        }
+
+      printf(" %02X", rom_data[a]);
+    }
+
+  printf("\n");
+  
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,6 +326,11 @@ SERIAL_COMMAND serial_cmds[] =
       cli_information,
     },
     {
+      'd',
+      "Dump RAM",
+      cli_dump_ram,
+    },
+    {
       'z',
       "Enter parameter value",
       cli_enter_parameter,
@@ -305,6 +339,11 @@ SERIAL_COMMAND serial_cmds[] =
       'v',
       "Version",
       cli_version,
+    },
+    {
+      'R',
+      "Reset",
+      cli_do_reset,
     },
     {
       '0',
@@ -445,14 +484,15 @@ inline void set_data_outputs(void)
 
 #define MSG_IN_CORE1 0
 
+#define USB_FLAGS 0
+
+#define RW_MASK (( 1<< PIN_NWDS) | ( 1<< PIN_NRDS))
+
 void ram_emulate(void)
 {
   
-  //printf("\nDisabling interrupts...\n");
-
   irq_set_mask_enabled( 0xFFFFFFFF, false );
 
-  //printf("\nDisabled interrupts...\n");
   while(1)
     {
       uint32_t gpio_states;
@@ -469,36 +509,48 @@ void ram_emulate(void)
 #endif
 
       // No CE, we look at address ranges.
-      if( (gpio_hi_states & 0xFF00) == 0xB000 )
+      if( (gpio_hi_states & 0xFF00) == 0x1200,1 )
       	{
           // Address matches
           
-#if 1
-	  printf("\nS");
+#if 0
+	  printf("\nS%04X", gpio_hi_states);
 #endif
 	  // Is this a read or a write?
-	  if( (gpio_states & ( 1<< PIN_NWDS))==0 )
+	  if( (gpio_states & RW_MASK)!=RW_MASK )
 	    {
               // Write
               
-#if 1
-	      printf("\nW");
+#if USB_FLAGS
+              printf("\nW%04X", gpio_hi_states);
 #endif
-	      // Write
-	      // data lines inputs
-	      //set_data_inputs();
-
-	      // Wait for CE to go high then latch data
-	      while( (gpio_states & ((1 << PIN_NWDS) | (1<< PIN_NRDS))) != ((1 << PIN_NWDS) | (1<< PIN_NRDS)) )
+              // Write
+              // data lines inputs
+              //set_data_inputs();
+          
+              // Wait for read and write to go high then latch data
+#if 0
+              gpio_hi_states  = sio_hw->gpio_hi_in;
+              addr = (gpio_hi_states) & ADDRESS_MASK;
+          
+              rom_data[addr] = (gpio_states >> 0) & 0xFF;
+#endif
+          
+              while( ((gpio_states = sio_hw->gpio_in) & RW_MASK) != RW_MASK )
                 //                while( !((gpio_states = sio_hw->gpio_in) & (1 << CE_PIN)) )
-		{
-		}
-	      addr = (gpio_states >> 8) & ADDRESS_MASK;
+                {
+                }
 
-	      rom_data[addr] = (gpio_states >> 0) & 0xFF;
-
-#if MSG_IN_CORE1
-	      printf("\nD:%02X", rom_data[addr]);
+              // Rising edge of phi2, data valid for read and write
+#if 1
+              gpio_hi_states  = sio_hw->gpio_hi_in;
+              addr = (gpio_hi_states) & ADDRESS_MASK;
+          
+              rom_data[addr] = gpio_states & 0xFF;
+#endif
+              
+#if USB_FLAGS
+	      printf("            D:%02X", rom_data[addr]);
 #endif
 	      
 #if TRACE_ON	        
@@ -515,23 +567,27 @@ void ram_emulate(void)
 		}
 #endif
 	    }
-	  else
+
+	  if( (gpio_states & ( 1<< PIN_NRDS))==999 )
+
+            //else
 	    {
-#if 1
-	      printf("\nR");
+#if USB_FLAGS
+              printf("\nR%04X", gpio_hi_states);
 #endif
+
 	      // Read
 	      // data lines outputs
 	      set_data_outputs();
 	      
 	      // ROM emulation so always a read of us
 	      // get address
-	      addr = (gpio_hi_states >> 8) & ADDRESS_MASK;
+	      addr = (gpio_hi_states) & ADDRESS_MASK;
 	      
 	      // Get data and present it on bus
 	      set_data(rom_data[addr]);
-#if MSG_IN_CORE1
-	      printf("\nD:%02X", rom_data[addr]);
+#if USB_FLAGS
+	      printf("       D:%02X", rom_data[addr]);
 #endif
 
 #if TRACE_ON	        
@@ -660,17 +716,17 @@ int main(void)
   set_gpio_input(PIN_D5);
   set_gpio_input(PIN_D6);
   set_gpio_input(PIN_D7);
-
-  set_gpio_input(PIN_NRST_DRV);
-  set_gpio_input(PIN_NMI_DRV);
-  set_gpio_input(PIN_IRQ_DRV);
+  
+  set_gpio_output(PIN_NRST_DRV);
+  set_gpio_output(PIN_NMI_DRV);
+  set_gpio_output(PIN_IRQ_DRV);
   set_gpio_input(PIN_NWDS);
   set_gpio_input(PIN_NRDS);
   set_gpio_input(PIN_SYNC);
   set_gpio_input(PIN_PHI2);
   set_gpio_input(PIN_RW);
 
-// SD card GPIOs here
+  // SD card GPIOs here
   set_gpio_input(PIN_K3);
   set_gpio_input(PIN_K2);
   set_gpio_input(PIN_K1);
@@ -692,16 +748,22 @@ int main(void)
   set_gpio_input(PIN_A13);
   set_gpio_input(PIN_A14);
   set_gpio_input(PIN_A15);
-
+  
+  // Set outputs to safe levels
+  
+  gpio_put(PIN_NRST_DRV, 0);
+  gpio_put(PIN_NMI_DRV, 0);
+  gpio_put(PIN_IRQ_DRV, 0);
+  
   ////////////////////////////////////////////////////////////////////////////////
   //
   // Overclock as needed
   //
   ////////////////////////////////////////////////////////////////////////////////
   
-#define OVERCLOCK 135000
+  //#define OVERCLOCK 135000
   //#define OVERCLOCK 200000
-  //#define OVERCLOCK 270000
+#define OVERCLOCK 270000
   //#define OVERCLOCK 360000
   
 #if OVERCLOCK > 270000
