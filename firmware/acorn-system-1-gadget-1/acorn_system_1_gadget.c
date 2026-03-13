@@ -155,15 +155,38 @@ void cli_do_reset(void)
   
 }
 
-void cli_dump_ram(void)
+void cli_dump_rom(void)
 {
-  for(int a=0; a<65536; a++)
+  for(int a=0xFE00; a<65536; a++)
     {
       if( (a % 64) == 0 )
         {
           printf("\n%04X: ", a);
         }
 
+      printf(" %02X", rom_data[a]);
+    }
+
+  printf("\n");
+  
+}
+
+void cli_dump_ram(void)
+{
+  for(int a=0x0000; a<0x0800; a++)
+    {
+      if( (a % 64) == 0 )
+        {
+          printf("\n%04X: ", a);
+        }
+      else
+        {
+          if( (a % 8) == 0 )
+            {
+              printf(" ");
+            }
+        }
+      
       printf(" %02X", rom_data[a]);
     }
 
@@ -326,7 +349,12 @@ SERIAL_COMMAND serial_cmds[] =
       cli_information,
     },
     {
-      'd',
+      'o',
+      "Dump ROM",
+      cli_dump_rom,
+    },
+    {
+      'a',
       "Dump RAM",
       cli_dump_ram,
     },
