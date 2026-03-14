@@ -62,6 +62,7 @@ volatile int command_register = 0;
 volatile uint8_t rom_data[65536];
 
 #define ADDRESS_MASK  0xFFFF
+#define WINDOW_START  0xB000
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,6 +159,29 @@ void cli_do_reset(void)
 void cli_dump_rom(void)
 {
   for(int a=0xFE00; a<65536; a++)
+    {
+      if( (a % 64) == 0 )
+        {
+          printf("\n%04X: ", a);
+        }
+
+      printf(" %02X", rom_data[a]);
+    }
+
+  printf("\n");
+  
+}
+
+//------------------------------------------------------------------------------
+
+void cli_incr_b000(void)
+{
+  rom_data[0xb000]++;  
+}
+
+void cli_dump_window(void)
+{
+  for(int a=WINDOW_START; a<(WINDOW_START+256); a++)
     {
       if( (a % 64) == 0 )
         {
@@ -344,6 +368,11 @@ SERIAL_COMMAND serial_cmds[] =
       cli_boot_mass,
     },
     {
+      '+',
+      "Increment 0xB000",
+      cli_incr_b000,
+    },
+    {
       'i',
       "Information",
       cli_information,
@@ -357,6 +386,11 @@ SERIAL_COMMAND serial_cmds[] =
       'a',
       "Dump RAM",
       cli_dump_ram,
+    },
+    {
+      'w',
+      "Dump memory window",
+      cli_dump_window,
     },
     {
       'z',
@@ -518,11 +552,13 @@ inline void set_data_outputs(void)
 #define RD_MASK  ( 1<< PIN_NRDS)
 #define WR_MASK  ( 1<< PIN_NWDS)
 
+#define IN_ADDR_WINDOW ((gpio_hi_states & 0xFF00) == 0xB000)
+
 void ram_emulate(void)
 {
   
   irq_set_mask_enabled( 0xFFFFFFFF, false );
-
+  
   while(1)
     {
       uint32_t gpio_states;
@@ -530,164 +566,83 @@ void ram_emulate(void)
       
       BYTE db;
       unsigned int addr;
-
+      
       gpio_states     = sio_hw->gpio_in;
       gpio_hi_states  = sio_hw->gpio_hi_in;
       
-#if EMULATE_LOOP_CNT
-      emulate_loops++;
-#endif
-
-      // No CE, we look at address ranges.
-      if( (gpio_hi_states & 0xFF00) == 0x1200,1 )
-      	{
-          // Address matches
-#if 0
-	  printf("\nS%04X", gpio_hi_states);
-#endif
-	  // Is this a read or a write?
-	  if( (gpio_states & RW_MASK)!=RW_MASK )
-	    {
-              // Write
-              
+      // Is this a write?
+      if( ((gpio_states & WR_MASK) != WR_MASK) && IN_ADDR_WINDOW )
+        {
+          // Write
+          
 #if USB_FLAGS
-              printf("\nW%04X", gpio_hi_states);
+          printf("\nW%04X", gpio_hi_states);
 #endif
-              // Write
-              // data lines inputs
-              //set_data_inputs();
+          // Write
+          // data lines inputs
+          //set_data_inputs();
           
-              // Wait for read and write to go high then latch data
-#if 0
-              gpio_hi_states  = sio_hw->gpio_hi_in;
-              addr = (gpio_hi_states) & ADDRESS_MASK;
+          // Wait for read and write to go high then latch data
+          while( ((gpio_states = sio_hw->gpio_in) & WR_MASK) != WR_MASK )
+            {
+            }
           
-              rom_data[addr] = (gpio_states >> 0) & 0xFF;
+          // Falling edge of phi2, data valid for read and write
+          gpio_hi_states  = sio_hw->gpio_hi_in;
+          addr = (gpio_hi_states) & ADDRESS_MASK;
+          
+          rom_data[addr] = gpio_states & 0xFF;
+          
+#if USB_FLAGS
+          printf("            D:%02X", rom_data[addr]);
 #endif
           
-              while( ((gpio_states = sio_hw->gpio_in) & RW_MASK) != RW_MASK )
-                //                while( !((gpio_states = sio_hw->gpio_in) & (1 << CE_PIN)) )
+        }
+      
+      if( ((gpio_states & RD_MASK) != RD_MASK) && IN_ADDR_WINDOW )
+        {
+#if USB_FLAGS
+          printf("\nR%04X", gpio_hi_states);
+#endif
+          
+          // Read
+          // data lines outputs
+          set_data_outputs();
+	  
+          // ROM emulation so always a read of us
+          // get address
+          gpio_hi_states  = sio_hw->gpio_hi_in;
+          addr = (gpio_hi_states) & ADDRESS_MASK;
+	  
+          // Get data and present it on bus
+          set_data(rom_data[addr]);
+#if USB_FLAGS
+          printf("       D:%02X", rom_data[addr]);
+#endif
+          
+          // Wait for RD and WR to be de-asserted
+          while(1)
+            {
+              
+              gpio_states = sio_hw->gpio_in;
+              
+#if MSG_IN_CORE1
+              printf("\nWAIT %08X", gpio_states);
+              printf("  %02X", gpio_get(CE_PIN));
+#endif
+              // We look for CE
+              if( (gpio_states & RD_MASK) != RD_MASK  )
                 {
+                  // CE high, we are not selected
+                  // data lines inputs
+                  set_data_inputs();
+#if MSG_IN_CORE1
+                  printf("\nDONE WAIT");
+#endif
+                  break;
                 }
-
-              // Rising edge of phi2, data valid for read and write
-#if 1
-              gpio_hi_states  = sio_hw->gpio_hi_in;
-              addr = (gpio_hi_states) & ADDRESS_MASK;
-          
-              rom_data[addr] = gpio_states & 0xFF;
-#endif
-              
-#if USB_FLAGS
-	      printf("            D:%02X", rom_data[addr]);
-#endif
-	      
-#if TRACE_ON	        
-	      if( trace_on)
-		{
-		  if( addr_trace_index < MAX_ADDR_TRACE )
-		    {
-		      int tv = addr;
-		      addr_trace[addr_trace_index] = tv;
-		      data_trace[addr_trace_index] = rom_data[addr];
-		      flag_trace[addr_trace_index] = FLAG_TRACE_WR;
-		      addr_trace_index++;
-		    }
-		}
-#endif
-	    }
-
-	  if( (gpio_states & ( 1<< PIN_NRDS))==999 )
-
-            //else
-	    {
-#if USB_FLAGS
-              printf("\nR%04X", gpio_hi_states);
-#endif
-
-	      // Read
-	      // data lines outputs
-	      set_data_outputs();
-	      
-	      // ROM emulation so always a read of us
-	      // get address
-	      addr = (gpio_hi_states) & ADDRESS_MASK;
-	      
-	      // Get data and present it on bus
-	      set_data(rom_data[addr]);
-#if USB_FLAGS
-	      printf("       D:%02X", rom_data[addr]);
-#endif
-
-#if TRACE_ON	        
-	      if( trace_on)
-		{
-		  if( addr_trace_index < MAX_ADDR_TRACE )
-		    {
-		      int tv = addr;
-		      addr_trace[addr_trace_index] = tv;
-		      data_trace[addr_trace_index] = rom_data[addr];
-		      flag_trace[addr_trace_index] = FLAG_TRACE_RD;
-		      addr_trace_index++;
-		    }
-		}
-#endif
-	    }	  
-	  //set_data(0xF8);
-
-#if 0	  
-	  // Trace address 
-	  if( addr == 3 )
-	    {
-	      trace_on = 1;
-	    }
-	  
-	  if( trace_on)
-	    {
-	      if( addr_trace_index < MAX_ADDR_TRACE )
-		{
-		  int tv = addr;
-		  if( addr_trace[addr_trace_index] == tv )
-		    {
-		    }
-		  else
-		    {
-		      addr_trace_index++;
-		      addr_trace[addr_trace_index] = tv;
-		    }
-		  //addr_trace_index %= MAX_ADDR_TRACE;
-		  
-		}
-	    }
-	  number_ce_assert++;
-
-#endif
-#if 1
-	  
-	  // Wait for RD and WR to be de-asserted
-	  while(1)
-	    {
-
-	      gpio_states = sio_hw->gpio_in;
-
-#if MSG_IN_CORE1
-	      printf("\nWAIT %08X", gpio_states);
-	      printf("  %02X", gpio_get(CE_PIN));
-#endif
-	      // We look for CE
-	      if( (gpio_states & ((1 << PIN_NWDS) | (1<< PIN_NRDS))) == ((1 << PIN_NWDS) | (1<< PIN_NRDS)) )
-		{
-		  // CE high, we are not selected
-		  // data lines inputs
-		  set_data_inputs();
-#if MSG_IN_CORE1
-		  printf("\nDONE WAIT");
-#endif
-		  break;
-		}
-	    }
-#endif
-      	}
+            }
+        }
     }
 }
 
@@ -854,14 +809,14 @@ int main(void)
     }
 
   mount_sd();
-  if( !cd_to_dir("/HX20") )
+  if( !cd_to_dir("/SYS1") )
     {
       printf("\nFailed to cd to /HX20 directory");
       printf("\n%s", sd_error);
     }
   else
     {
-      printf("\n/HX20 directory found");
+      printf("\n/SYS1 directory found");
     }
   unmount_sd();
 
@@ -873,13 +828,11 @@ int main(void)
   oled_clear_display(&oled0);
   
   oled_set_xy(&oled0, 20, 0);
-  oled_display_string(&oled0, "HX20");
+  oled_display_string(&oled0, "Acorn System 1");
 
   oled_set_xy(&oled0, 30, 8);
-  oled_display_string(&oled0, "Cartridge");
+  oled_display_string(&oled0, "Memory Emulator");
 
-  oled_set_xy(&oled0, 30, 16);
-  oled_display_string(&oled0, "Emulator");
 #endif
 
   // Run the shift register touch key scanning on the second core
