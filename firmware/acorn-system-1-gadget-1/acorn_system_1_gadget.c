@@ -540,7 +540,6 @@ void ram_emulate(void)
       if( (gpio_hi_states & 0xFF00) == 0x1200,1 )
       	{
           // Address matches
-          
 #if 0
 	  printf("\nS%04X", gpio_hi_states);
 #endif

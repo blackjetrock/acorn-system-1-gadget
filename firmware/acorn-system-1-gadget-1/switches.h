@@ -155,18 +155,18 @@
 #define ESC_TYPE_DESKTOP       0
 
 #define ESC_KBD_VOLT_TOUCH     0
-#define ESC_KBD_QT             1
+#define ESC_KBD_QT             0
 
 // Implement the extracode framework as instruction sin 100..199
 // Otherwise coded instructions.
-#define EXTRACODE_FRAMEWORK    1
+#define EXTRACODE_FRAMEWORK    0
 
 // Suppressed output has no leading zeros and no + sign.
 // This is closer to the original machine.
 
 #define SUPPRESSED_OUTPUT      1
-#define OLED_ON                1
-#define SD_ON                  1
+#define OLED_ON                0
+#define SD_ON                  0
 #define ERRORS_ON              0
 #define WARNINGS_ON            0
 
