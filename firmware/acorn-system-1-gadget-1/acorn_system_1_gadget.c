@@ -121,6 +121,18 @@ const int PIN_A13       =  45;
 const int PIN_A14       =  46; 
 const int PIN_A15       =  47; 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Chris oddy display
+//
+
+uint8_t app1[] =
+  {
+    0xa2, 0x07, 0xbd, 0x10, 0xb0, 0x95, 0x10, 0xca, 0x10, 0xf8, 0x20, 0x0c, 0xfe, 0x4c, 0xfb, 0xfe,
+    0x00, 0x77, 0x58, 0x5c, 0x50, 0x54, 0x00, 0x30,
+  };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void set_gpio_output(const int gpio)
@@ -137,7 +149,61 @@ void set_gpio_input(const int gpio)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-  
+// Flash data
+//
+// We have several flash program slots.
+// Slots are in the top 1Mbyte of flash
+//
+// The flash has to be erased in 4096 byte aligned blocks
+// Writes can be 256 byte aligned but due to erase being 4096 we use that slot size.
+
+// Program and dat aram is stored at the same time, so it is a snapshot of the entire
+// RAM. RAM plkus program is 256 bytes.
+
+#define FLASH_PROGRAM_DATA_SIZE         256
+#define FLASH_PROGRAM_SLOT_SIZE         4096
+#define FLASH_PROGRAM_SLOT_AREA_SIZE    (1000*1024)
+#define FLASH_PROGRAM_NUM_SLOTS         (FLASH_PROGRAM_SLOT_AREA_SIZE / FLASH_PROGRAM_SLOT_SIZE)
+
+#define FLASH_SLOT_OFFSET (1024*1024)
+uint8_t *flash_slot_contents   = (uint8_t *) (XIP_BASE + FLASH_SLOT_OFFSET);
+
+// general buffer for flash read and write
+uint8_t slot_buffer[FLASH_PROGRAM_DATA_SIZE];
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Flash write/erase
+//
+////////////////////////////////////////////////////////////////////////////////
+
+// Erase a slot
+void erase_slot(int n)
+{
+  flash_range_erase(FLASH_SLOT_OFFSET+n*FLASH_PROGRAM_SLOT_SIZE, FLASH_PROGRAM_SLOT_SIZE);
+}
+
+// Checksum a slot
+int checksum_slot(int slot_num)
+{
+  int csum = 0;
+
+  for(int i=0; i<FLASH_PROGRAM_DATA_SIZE; i++)
+    {
+      csum += *(flash_slot_contents+slot_num*FLASH_PROGRAM_SLOT_SIZE+i);
+    }
+
+  return(csum);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void cli_load_app_1(void)
+{
+  memcpy((void *)&(rom_data[0xb000]), (void *)app1, sizeof(app1));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void cli_boot_mass(void)
@@ -456,6 +522,11 @@ SERIAL_COMMAND serial_cmds[] =
       '9',
       "*Digit",
       cli_digit,
+    },
+    {
+      '@',
+      "Load app1",
+      cli_load_app_1,
     },
   };
 
