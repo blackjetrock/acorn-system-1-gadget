@@ -515,6 +515,8 @@ inline void set_data_outputs(void)
 #define USB_FLAGS 0
 
 #define RW_MASK (( 1<< PIN_NWDS) | ( 1<< PIN_NRDS))
+#define RD_MASK  ( 1<< PIN_NRDS)
+#define WR_MASK  ( 1<< PIN_NWDS)
 
 void ram_emulate(void)
 {
@@ -662,7 +664,7 @@ void ram_emulate(void)
 #endif
 #if 1
 	  
-	  // Wait for CE to be de-asserted
+	  // Wait for RD and WR to be de-asserted
 	  while(1)
 	    {
 
