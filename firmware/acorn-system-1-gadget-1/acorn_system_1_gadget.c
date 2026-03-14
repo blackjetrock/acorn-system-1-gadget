@@ -172,6 +172,13 @@ void cli_dump_rom(void)
   
 }
 
+//------------------------------------------------------------------------------
+
+void cli_incr_b000(void)
+{
+  rom_data[0xb000]++;  
+}
+
 void cli_dump_window(void)
 {
   for(int a=WINDOW_START; a<(WINDOW_START+256); a++)
@@ -359,6 +366,11 @@ SERIAL_COMMAND serial_cmds[] =
       '!',
       "Boot to mass storage",
       cli_boot_mass,
+    },
+    {
+      '+',
+      "Increment 0xB000",
+      cli_incr_b000,
     },
     {
       'i',
@@ -797,14 +809,14 @@ int main(void)
     }
 
   mount_sd();
-  if( !cd_to_dir("/HX20") )
+  if( !cd_to_dir("/SYS1") )
     {
       printf("\nFailed to cd to /HX20 directory");
       printf("\n%s", sd_error);
     }
   else
     {
-      printf("\n/HX20 directory found");
+      printf("\n/SYS1 directory found");
     }
   unmount_sd();
 
@@ -816,13 +828,11 @@ int main(void)
   oled_clear_display(&oled0);
   
   oled_set_xy(&oled0, 20, 0);
-  oled_display_string(&oled0, "HX20");
+  oled_display_string(&oled0, "Acorn System 1");
 
   oled_set_xy(&oled0, 30, 8);
-  oled_display_string(&oled0, "Cartridge");
+  oled_display_string(&oled0, "Memory Emulator");
 
-  oled_set_xy(&oled0, 30, 16);
-  oled_display_string(&oled0, "Emulator");
 #endif
 
   // Run the shift register touch key scanning on the second core

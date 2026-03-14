@@ -2,8 +2,8 @@
 #define I2C_FUNCTIONS_H_
 
 // For the OLED display
-#define SDA_PIN  30
-#define SCL_PIN  31
+#define SDA_PIN  14
+#define SCL_PIN  15
 
 typedef uint8_t BYTE;
 
