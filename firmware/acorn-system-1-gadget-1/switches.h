@@ -165,7 +165,7 @@
 // This is closer to the original machine.
 
 #define SUPPRESSED_OUTPUT      1
-#define OLED_ON                0
+#define OLED_ON                1
 #define SD_ON                  0
 #define ERRORS_ON              0
 #define WARNINGS_ON            0
