@@ -58,6 +58,9 @@ volatile int wd_edge_count   = 0;
 
 volatile int command_register = 0;
 
+// How much RAM to display 
+#define RAM_SIZE 1024
+
 // Shadow of entire memory space
 volatile uint8_t rom_data[65536];
 
@@ -133,6 +136,14 @@ uint8_t app1[] =
     0x00, 0x77, 0x58, 0x5c, 0x50, 0x54, 0x00, 0x30,
   };
 
+
+//------------------------------------------------------------------------------
+
+uint8_t *app_list[] =
+  {
+    app1,
+  };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void set_gpio_output(const int gpio)
@@ -148,6 +159,29 @@ void set_gpio_input(const int gpio)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+void display_ram_at(uint8_t *dat)
+{
+  printf("\n");
+  
+  for(int z = 0; z<RAM_SIZE; z++)
+    {
+      int byte = 0;
+      
+      if( (z % 8) == 0)
+	{
+	  printf("\n%03X: ", z);
+	}
+      
+      printf("%02X ", *(dat++));
+    }
+  
+  printf("\n");
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //
 // Flash data
 //
@@ -159,6 +193,7 @@ void set_gpio_input(const int gpio)
 
 // Program and dat aram is stored at the same time, so it is a snapshot of the entire
 // RAM. RAM plkus program is 256 bytes.
+
 
 #define FLASH_PROGRAM_DATA_SIZE         256
 #define FLASH_PROGRAM_SLOT_SIZE         4096
@@ -196,12 +231,50 @@ int checksum_slot(int slot_num)
 
   return(csum);
 }
+void cli_erase_program_slot(void)
+{
+  printf("\nErasing program slot %d...", parameter);
+  erase_slot(parameter);
+  printf("\ndone.\n");
+}
+
+void cli_display_program_slot(void)
+{
+  
+  printf("\nSlot %d\n", parameter);
+
+  // First dump in hex
+  display_ram_at(flash_slot_contents+parameter*FLASH_PROGRAM_SLOT_SIZE);
+
+  printf("\n\n");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+// Load app, index is parameter
+//
 
-void cli_load_app_1(void)
+void cli_load_app(void)
 {
-  memcpy((void *)&(rom_data[0xb000]), (void *)app1, sizeof(app1));
+  uint8_t *app_ptr;
+  int num_apps = (sizeof(app_list) / sizeof(uint8_t *));
+  
+  printf("\n%d apps", num_apps);
+  
+  if( (parameter >= 0) && (parameter < num_apps) )
+    {
+      app_ptr = app_list[parameter];
+      
+      memcpy((void *)&(rom_data[0xb000]), (void *)app_list[parameter], sizeof(app1));
+
+      printf("\nLoaded app %d", parameter);
+    }
+  else
+    {
+      printf("\nParameter out of range");
+    }
+  
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -405,7 +478,46 @@ void cli_digit(void)
 
 void cli_information(void)
 {
+  // Set up OLED display
+  i2c_init(&i2c_bus_0);
+  
+  oled_setup(&oled0);
+
+  // Overall loop, which contains the polling loop and the menu loop
+  oled_clear_display(&oled0);
+  
+  oled_set_xy(&oled0, 20, 0);
+  oled_display_string(&oled0, "Acorn System 1");
+
+  oled_set_xy(&oled0, 30, 8);
+  oled_display_string(&oled0, "Memory Emulator");
+
+  // Sets sd_ok flag for later use
+  printf("\nInitialising SD card driver...");
+
+#define SD_CARD 1
+
+  // Initialise SD card driver
+  sd_init_driver();
+
+  // Mount and unmount the SD card to set the sd_ok_flag up
+  mount_sd();
+  unmount_sd();
+  
+  oled_set_xy(&oled0, 0,21);
+  if( sd_ok_flag )
+    {
+      oled_display_string(&oled0, "SD card OK");
+      printf("\nSD card OK");
+    }
+  else
+    {
+      oled_display_string(&oled0, "SD card NOT OK");
+      printf("\nSD card NOT OK");
+    }
+
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -526,7 +638,7 @@ SERIAL_COMMAND serial_cmds[] =
     {
       '@',
       "Load app1",
-      cli_load_app_1,
+      cli_load_app,
     },
   };
 

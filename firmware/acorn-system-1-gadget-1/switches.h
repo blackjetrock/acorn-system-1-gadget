@@ -166,7 +166,7 @@
 
 #define SUPPRESSED_OUTPUT      1
 #define OLED_ON                1
-#define SD_ON                  0
+#define SD_ON                  1
 #define ERRORS_ON              0
 #define WARNINGS_ON            0
 

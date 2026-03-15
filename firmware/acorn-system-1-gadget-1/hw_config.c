@@ -46,10 +46,10 @@ tab "Dev Brd", for pin assignments assumed in this configuration file.
 spi_t spis[] = {  // One for each SPI.
     {
         // spis[0]
-        .hw_inst = spi1,  // RP2040 SPI component
-        .sck_gpio = 20,     //18,    // GPIO number (not Pico pin number)
+        .hw_inst = spi0,  // RP2040 SPI component
+        .sck_gpio = 18,    // GPIO number (not Pico pin number)
         .mosi_gpio = 19,
-        .miso_gpio = 22,    //16,
+        .miso_gpio = 16,
         .spi_mode = 0,
         
         /* GPIO reset drive strength is 4 mA.
@@ -71,11 +71,8 @@ spi_t spis[] = {  // One for each SPI.
 static sd_spi_if_t spi_ifs[] = {
     {   // spi_ifs[0]
         .spi = &spis[0],  // Pointer to the SPI driving this card
-#if PICOCALC
-        .ss_gpio = 17,     // The SPI slave select GPIO for this SD card
-#else
-        .ss_gpio = 16,   //22,     // The SPI slave select GPIO for this SD card
-#endif
+        .ss_gpio = 22,     // The SPI slave select GPIO for this SD card
+
         .set_drive_strength = true,
         .ss_gpio_drive_strength = GPIO_DRIVE_STRENGTH_2MA
     },
