@@ -69,7 +69,7 @@ volatile uint8_t rom_data[65536];
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define FILES_DIR  "\\SYS1"
+#define FILES_DIR  "/SYS1"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -532,7 +532,10 @@ int read_binary_file(char *fn, int address)
 {
   char line[MAX_FILE_LINE];
   char fileline[MAX_FILE_LINE];
+  volatile uint8_t *ptr = &(rom_data[address]);
 
+  printf("\nLoading %s", fn);
+  
   mount_sd();
   
   if( !cd_to_dir(FILES_DIR) )
@@ -543,7 +546,7 @@ int read_binary_file(char *fn, int address)
   
   sprintf("Reading '%s'", fn);
 
-  FF_FILE *fp = ff_fopen(fn, "rb");
+  FF_FILE *fp = ff_fopen(fn, "r");
 
   if (fp == NULL)
     {
@@ -551,11 +554,22 @@ int read_binary_file(char *fn, int address)
       unmount_sd();
       return(0);
     }
-  
-  // Get lines from the file
-  while( ff_fgets(&(fileline[0]), sizeof(fileline)-1, fp) != NULL )
+
+  while(1)
     {
-      printf("%s", fileline);
+      // Read binary file data
+      int ni = ff_fread((void *)ptr, 1, 1, fp);
+
+      printf("\n%02X ", (int)*ptr);
+      if( f_eof(fp) || (ni == 0))
+        {
+          // No more file
+          ff_fclose(fp);
+          unmount_sd();
+          return(0);
+        }
+
+      ptr++;
     }
   
   ff_fclose(fp);
@@ -564,6 +578,11 @@ int read_binary_file(char *fn, int address)
 }
 
 //------------------------------------------------------------------------------
+
+void cli_read_file(void)
+{
+  read_binary_file("acorn1.bin", 0xB000);
+}
 
 void cli_version(void)
 {
@@ -585,10 +604,10 @@ void cli_information(void)
   // Overall loop, which contains the polling loop and the menu loop
   oled_clear_display(&oled0);
   
-  oled_set_xy(&oled0, 20, 0);
+  oled_set_xy(&oled0, 10, 0);
   oled_display_string(&oled0, "Acorn System 1");
 
-  oled_set_xy(&oled0, 30, 8);
+  oled_set_xy(&oled0, 10, 8);
   oled_display_string(&oled0, "Memory Emulator");
 
   // Sets sd_ok flag for later use
@@ -653,6 +672,11 @@ SERIAL_COMMAND serial_cmds[] =
       'i',
       "Information",
       cli_information,
+    },
+    {
+      '=',
+      "Read binary file",
+      cli_read_file,
     },
     {
       'o',
@@ -1114,10 +1138,10 @@ int main(void)
   // Overall loop, which contains the polling loop and the menu loop
   oled_clear_display(&oled0);
   
-  oled_set_xy(&oled0, 20, 0);
+  oled_set_xy(&oled0, 5, 0);
   oled_display_string(&oled0, "Acorn System 1");
 
-  oled_set_xy(&oled0, 30, 8);
+  oled_set_xy(&oled0, 5, 16);
   oled_display_string(&oled0, "Memory Emulator");
 
 #endif
