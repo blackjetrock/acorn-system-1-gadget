@@ -27,6 +27,8 @@ extern int max_filenum;
 
 extern char file_list_data[FILE_LIST_DATA_LINES_MAX][FILE_LIST_DATA_LINES_LEN];
 
+extern sd_card_t sd_cards[];
+   
 void mount_sd(void);
 void unmount_sd(void);
 int cd_to_dir(char *to_dir);

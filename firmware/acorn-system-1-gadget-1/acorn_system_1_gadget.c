@@ -69,6 +69,10 @@ volatile uint8_t rom_data[65536];
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define FILES_DIR  "\\SYS1"
+
+////////////////////////////////////////////////////////////////////////////////
+
 int parameter = 0;
 int keypress = 0;
 
@@ -160,6 +164,49 @@ void set_gpio_input(const int gpio)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
+void run_mount(void) {
+  //    const char *arg = chk_dflt_log_drv(argc, argv);
+  const char *arg = "0:";
+  if (!arg)
+        return;
+    sd_card_t *sd_card_p = sd_get_by_drive_prefix(arg);
+    if (!sd_card_p) {
+        printf("Unknown logical drive id: \"%s\"\n", arg);
+        return;
+    }
+    FATFS *fs_p = &sd_card_p->state.fatfs;
+    FRESULT fr = f_mount(fs_p, arg, 1);
+    if (FR_OK != fr) {
+        printf("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
+        return;
+    }
+    sd_card_p->state.mounted = true;
+}
+
+void run_unmount(void) {
+  //    const char *arg = chk_dflt_log_drv(argc, argv);
+  const char *arg = "0:";
+  
+  if (!arg)
+        return;
+
+    sd_card_t *sd_card_p = sd_get_by_drive_prefix(arg);
+    if (!sd_card_p) {
+        printf("Unknown logical drive id: \"%s\"\n", arg);
+        return;
+    }    
+    FRESULT fr = f_unmount(arg);
+    if (FR_OK != fr) {
+        printf("f_unmount error: %s (%d)\n", FRESULT_str(fr), fr);
+        return;
+    }
+    sd_card_p->state.mounted = false;
+    sd_card_p->state.m_Status |= STA_NOINIT;  // in case medium is removed
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void display_ram_at(uint8_t *dat)
 {
@@ -309,6 +356,17 @@ void cli_dump_rom(void)
 
   printf("\n");
   
+}
+
+//------------------------------------------------------------------------------
+
+void cli_ls(void)
+{
+  printf("\nSD Card Listing:\n");
+  run_mount();
+
+  ls(FILES_DIR);
+  run_unmount();
 }
 
 //------------------------------------------------------------------------------
@@ -464,6 +522,47 @@ int cat_file(char *fn)
   unmount_sd();
   return(1);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Reads a binary file into emulation memory at the address given
+//
+
+int read_binary_file(char *fn, int address)
+{
+  char line[MAX_FILE_LINE];
+  char fileline[MAX_FILE_LINE];
+
+  mount_sd();
+  
+  if( !cd_to_dir(FILES_DIR) )
+    {
+      unmount_sd();
+      return(0);
+    }
+  
+  sprintf("Reading '%s'", fn);
+
+  FF_FILE *fp = ff_fopen(fn, "rb");
+
+  if (fp == NULL)
+    {
+      printf("Failed to open:%s", fn);
+      unmount_sd();
+      return(0);
+    }
+  
+  // Get lines from the file
+  while( ff_fgets(&(fileline[0]), sizeof(fileline)-1, fp) != NULL )
+    {
+      printf("%s", fileline);
+    }
+  
+  ff_fclose(fp);
+  unmount_sd();
+  return(1);
+}
+
 //------------------------------------------------------------------------------
 
 void cli_version(void)
@@ -559,6 +658,11 @@ SERIAL_COMMAND serial_cmds[] =
       'o',
       "Dump ROM",
       cli_dump_rom,
+    },
+    {
+      'l',
+      "List Files",
+      cli_ls,
     },
     {
       'a',
@@ -992,14 +1096,14 @@ int main(void)
     }
 
   mount_sd();
-  if( !cd_to_dir("/SYS1") )
+  if( !cd_to_dir(FILES_DIR) )
     {
-      printf("\nFailed to cd to /HX20 directory");
+      printf("\nFailed to cd to %s directory", FILES_DIR);
       printf("\n%s", sd_error);
     }
   else
     {
-      printf("\n/SYS1 directory found");
+      printf("\n%s directory found", FILES_DIR);
     }
   unmount_sd();
 
