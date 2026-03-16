@@ -1,0 +1,55 @@
+;
+; ACORN System 1 Applications: Acorn 1
+; by mikes on Stardot
+;
+; (Chris Oddy January 2022)
+;
+; entry point $0200
+;
+		.setcpu			"6502"
+		.listbytes		unlimited
+;
+D		:=		$10			; display address
+DISPLAY	:=		$FE0C		; scan the display
+INIT	:=		$FEFB		; Monitor reentry point
+MLEN    :=              ENDMSG-MESAGEsudo minicom -D /dev/ttyACM0
+
+;
+		.org			$8000
+;
+
+STSC:   ldy             #0
+
+ACORN1:	ldx		#$07
+        tya
+        clc
+        adc      1
+        tay
+        clc
+        stx      $30
+        adc      $30
+        tax
+
+LOOP:
+
+lda		MESAGE,X
+		sta		D,X
+		dex
+		bpl		LOOP
+		jsr		DISPLAY
+
+; Check for Y reset
+
+              TYA
+              CMP #MLEN
+              BCC ACORN1
+
+              LDY  #0
+              JMP ACORN1
+;
+
+MESAGE:	.byte	$50, $79, $78, $5c, $50, $71, $79, $ed, $78, $00, $32, $36
+
+ENDMSG: .byte   0,0,0,0,0,0,0,0,0,0
+
+;

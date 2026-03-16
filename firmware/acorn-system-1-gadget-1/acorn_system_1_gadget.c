@@ -69,7 +69,7 @@ volatile int command_register = 0;
 volatile uint8_t rom_data[65536];
 
 #define ADDRESS_MASK  0xFFFF
-#define WINDOW_START  0xB000
+#define WINDOW_START  0x8000
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -316,7 +316,7 @@ void cli_load_app(void)
     {
       app_ptr = app_list[parameter];
       
-      memcpy((void *)&(rom_data[0xb000]), (void *)app_list[parameter], sizeof(app1));
+      memcpy((void *)&(rom_data[0x8000]), (void *)app_list[parameter], sizeof(app1));
 
       printf("\nLoaded app %d", parameter);
     }
@@ -375,9 +375,9 @@ void cli_ls(void)
 
 //------------------------------------------------------------------------------
 
-void cli_incr_b000(void)
+void cli_incr_8000(void)
 {
-  rom_data[0xb000]++;  
+  rom_data[0x8000]++;  
 }
 
 void cli_dump_window(void)
@@ -585,7 +585,7 @@ int read_binary_file(char *fn, int address)
 
 void cli_read_file(void)
 {
-  read_binary_file("acorn1.bin", 0xB000);
+  read_binary_file("retrofest.bin", 0x8000);
 }
 
 void cli_version(void)
@@ -671,8 +671,8 @@ SERIAL_COMMAND serial_cmds[] =
     },
     {
       '+',
-      "Increment 0xB000",
-      cli_incr_b000,
+      "Increment 0x8000",
+      cli_incr_8000,
     },
     {
       'i',
