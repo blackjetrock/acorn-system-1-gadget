@@ -1,0 +1,2 @@
+struct MENU_ELEMENT *current_menu;
+const struct MENU_ELEMENT home_menu[];

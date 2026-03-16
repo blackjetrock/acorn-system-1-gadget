@@ -40,7 +40,7 @@
 #include "oled.h"
 #include "sdcard.h"
 
-//#include "esc.h"
+#include "menu.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +73,7 @@ volatile uint8_t rom_data[65536];
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define FILES_DIR  "/SYS1"
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,9 +110,9 @@ const int PIN_RW        =  15;
 #define PIN_BITNUM_NRDS    12
 
 // SD card GPIOs here
-const int PIN_K3        =  28;
-const int PIN_K2        =  29;
-const int PIN_K1        =  30;
+const int PIN_K3        =  27;
+const int PIN_K2        =  28;
+const int PIN_K1        =  29;
 
 
 const int PIN_A0        =  32;
@@ -1155,7 +1155,20 @@ int main(void)
   // Run the shift register touch key scanning on the second core
   //  multicore_launch_core1(core1_main);
 
+  //------------------------------------------------------------------------------
+  
+  // Set up the OLED menu
+  
+  current_menu = &(home_menu[0]);
+  last_menu = &(home_menu[0]);
+  the_home_menu = last_menu;
 
+  to_home_menu(NULL);
+
+  init_buttons();
+
+  //------------------------------------------------------------------------------
+  
   while(1)
     {
 #if DEBUG_LOOP

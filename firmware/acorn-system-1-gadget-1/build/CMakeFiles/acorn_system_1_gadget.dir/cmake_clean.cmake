@@ -211,6 +211,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/acorn_system_1_gadget.dir/home/menadue/tree/github/acorn-system-1-gadget/firmware/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src/src/util.c.o.d"
   "CMakeFiles/acorn_system_1_gadget.dir/hw_config.c.o"
   "CMakeFiles/acorn_system_1_gadget.dir/hw_config.c.o.d"
+  "CMakeFiles/acorn_system_1_gadget.dir/menu.c.o"
+  "CMakeFiles/acorn_system_1_gadget.dir/menu.c.o.d"
   "CMakeFiles/acorn_system_1_gadget.dir/oled.c.o"
   "CMakeFiles/acorn_system_1_gadget.dir/oled.c.o.d"
   "CMakeFiles/acorn_system_1_gadget.dir/sdcard.c.o"

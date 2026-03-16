@@ -1,0 +1,12 @@
+// Number of buttons used for the menu system. The 'exit polling' button is not in this
+// list, it is coded as a GPIO line as we don't want to waste time processing the menu
+// buttons in the fast polling loop
+
+#define NUM_BUTTONS            3
+
+// Debounce
+#define MAX_BUT_COUNT          6
+
+const int SW0_PIN       = 27;
+const int SW1_PIN       = 28;
+const int SW2_PIN       = 29;

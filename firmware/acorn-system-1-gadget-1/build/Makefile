@@ -2776,6 +2776,30 @@ hw_config.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/acorn_system_1_gadget.dir/build.make CMakeFiles/acorn_system_1_gadget.dir/hw_config.c.s
 .PHONY : hw_config.c.s
 
+menu.o: menu.c.o
+.PHONY : menu.o
+
+# target to build an object file
+menu.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/acorn_system_1_gadget.dir/build.make CMakeFiles/acorn_system_1_gadget.dir/menu.c.o
+.PHONY : menu.c.o
+
+menu.i: menu.c.i
+.PHONY : menu.i
+
+# target to preprocess a source file
+menu.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/acorn_system_1_gadget.dir/build.make CMakeFiles/acorn_system_1_gadget.dir/menu.c.i
+.PHONY : menu.c.i
+
+menu.s: menu.c.s
+.PHONY : menu.s
+
+# target to generate assembly for a file
+menu.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/acorn_system_1_gadget.dir/build.make CMakeFiles/acorn_system_1_gadget.dir/menu.c.s
+.PHONY : menu.c.s
+
 oled.o: oled.c.o
 .PHONY : oled.o
 
@@ -3157,6 +3181,9 @@ help:
 	@echo "... hw_config.o"
 	@echo "... hw_config.i"
 	@echo "... hw_config.s"
+	@echo "... menu.o"
+	@echo "... menu.i"
+	@echo "... menu.s"
 	@echo "... oled.o"
 	@echo "... oled.i"
 	@echo "... oled.s"

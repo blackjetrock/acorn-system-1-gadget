@@ -45,6 +45,7 @@ add_executable(acorn_system_1_gadget
   oled.c
   sdcard.c
   hw_config.c
+  menu.c
   #extracode.c
   #extracode_fp.c
   #extracode_basic.c
