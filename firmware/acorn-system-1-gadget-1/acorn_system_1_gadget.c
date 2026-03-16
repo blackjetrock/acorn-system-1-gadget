@@ -40,7 +40,11 @@
 #include "oled.h"
 #include "sdcard.h"
 
-#include "esc.h"
+//#include "esc.h"
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define MAX_FILE_LINE 200
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -495,7 +499,7 @@ int cat_file(char *fn)
 
   mount_sd();
   
-  if( !cd_to_dir(HX20_DIR) )
+  if( !cd_to_dir(FILES_DIR) )
     {
       unmount_sd();
       return(0);
@@ -604,10 +608,10 @@ void cli_information(void)
   // Overall loop, which contains the polling loop and the menu loop
   oled_clear_display(&oled0);
   
-  oled_set_xy(&oled0, 10, 0);
+  oled_set_xy(&oled0, 0, 0);
   oled_display_string(&oled0, "Acorn System 1");
 
-  oled_set_xy(&oled0, 10, 8);
+  oled_set_xy(&oled0, 0, 8);
   oled_display_string(&oled0, "Memory Emulator");
 
   // Sets sd_ok flag for later use
@@ -625,11 +629,13 @@ void cli_information(void)
   oled_set_xy(&oled0, 0,21);
   if( sd_ok_flag )
     {
+      oled_set_xy(&oled0, 0, 16);
       oled_display_string(&oled0, "SD card OK");
       printf("\nSD card OK");
     }
   else
     {
+      oled_set_xy(&oled0, 0, 16);
       oled_display_string(&oled0, "SD card NOT OK");
       printf("\nSD card NOT OK");
     }
@@ -863,7 +869,7 @@ inline void set_data_outputs(void)
 #define RD_MASK  ( 1<< PIN_NRDS)
 #define WR_MASK  ( 1<< PIN_NWDS)
 
-#define IN_ADDR_WINDOW ((gpio_hi_states & 0xFF00) == 0xB000)
+#define IN_ADDR_WINDOW ((gpio_hi_states & 0xC000) == 0x8000)
 
 void ram_emulate(void)
 {

@@ -87,7 +87,6 @@ CMakeFiles/acorn_system_1_gadget.dir/acorn_system_1_gadget.c.o: /home/menadue/tr
   /home/menadue/pico/pico-sdk/src/rp2_common/pico_stdio_usb/include/pico/stdio_usb.h \
   generated/pico_base/pico/config_autogen.h \
   generated/pico_base/pico/version.h \
-  /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/esc.h \
   /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/oled.h \
   /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/sdcard.h \
   /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/switches.h \
@@ -6365,8 +6364,6 @@ build/rp2040_sdio.pio.h:
 
 /home/menadue/pico/pico-sdk/src/rp2350/hardware_structs/include/hardware/structs/powman.h:
 
-/home/menadue/pico/pico-sdk/src/rp2350/hardware_regs/include/hardware/regs/powman.h:
-
 /usr/arm-none-eabi/include/sys/_locale.h:
 
 /home/menadue/pico/pico-sdk/src/rp2350/hardware_regs/include/hardware/regs/timer.h:
@@ -6430,6 +6427,8 @@ build/rp2040_sdio.pio.h:
 /usr/arm-none-eabi/include/sys/_timeval.h:
 
 /home/menadue/pico/pico-sdk/lib/tinyusb/src/class/dfu/dfu_device.c:
+
+/home/menadue/pico/pico-sdk/src/rp2350/hardware_regs/include/hardware/regs/powman.h:
 
 /home/menadue/pico/pico-sdk/src/common/boot_picobin_headers/include/boot/picobin.h:
 
@@ -6619,6 +6618,12 @@ generated/pico_base/pico/version.h:
 
 /home/menadue/pico/pico-sdk/src/common/pico_sync/include/pico/sem.h:
 
+/home/menadue/pico/pico-sdk/src/rp2_common/hardware_sync_spin_lock/sync_spin_lock.c:
+
+/home/menadue/pico/pico-sdk/src/rp2350/pico_platform/include/pico/platform.h:
+
+/usr/arm-none-eabi/include/sys/_pthreadtypes.h:
+
 /home/menadue/pico/pico-sdk/src/rp2350/hardware_regs/include/hardware/regs/bootram.h:
 
 /home/menadue/pico/pico-sdk/src/rp2_common/pico_bootrom/bootrom_lock.c:
@@ -6735,12 +6740,6 @@ generated/pico_base/pico/version.h:
 
 /home/menadue/pico/pico-sdk/src/rp2_common/hardware_boot_lock/include/hardware/boot_lock.h:
 
-/home/menadue/pico/pico-sdk/src/rp2_common/hardware_sync_spin_lock/sync_spin_lock.c:
-
-/home/menadue/pico/pico-sdk/src/rp2350/pico_platform/include/pico/platform.h:
-
-/usr/arm-none-eabi/include/sys/_pthreadtypes.h:
-
 /usr/arm-none-eabi/include/sys/_stdint.h:
 
 /home/menadue/pico/pico-sdk/lib/tinyusb/src/portable/raspberrypi/rp2040/rp2040_usb.c:
@@ -6754,8 +6753,6 @@ generated/pico_base/pico/version.h:
 /home/menadue/pico/pico-sdk/src/rp2_common/hardware_flash/include/hardware/flash.h:
 
 /usr/arm-none-eabi/include/sys/reent.h:
-
-/home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/esc.h:
 
 /usr/arm-none-eabi/include/sys/sched.h:
 

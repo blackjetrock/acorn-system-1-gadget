@@ -146,5 +146,4 @@ CMakeFiles/acorn_system_1_gadget.dir/acorn_system_1_gadget.c.o: \
  /home/menadue/tree/github/acorn-system-1-gadget/firmware/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src/ff15/source/ff.h \
  /home/menadue/tree/github/acorn-system-1-gadget/firmware/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src/sd_driver/sd_card_constants.h \
  /home/menadue/tree/github/acorn-system-1-gadget/firmware/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src/sd_driver/sd_regs.h \
- /home/menadue/tree/github/acorn-system-1-gadget/firmware/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src/include/util.h \
- /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/esc.h
+ /home/menadue/tree/github/acorn-system-1-gadget/firmware/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico/src/include/util.h

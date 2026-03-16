@@ -88,7 +88,6 @@ CMakeFiles/acorn_system_1_gadget.dir/acorn_system_1_gadget.c.o
  /home/menadue/pico/pico-sdk/src/rp2_common/pico_stdio_usb/include/pico/stdio_usb.h
  /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/build/generated/pico_base/pico/config_autogen.h
  /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/build/generated/pico_base/pico/version.h
- /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/esc.h
  /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/oled.h
  /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/sdcard.h
  /home/menadue/tree/github/acorn-system-1-gadget/firmware/acorn-system-1-gadget-1/switches.h

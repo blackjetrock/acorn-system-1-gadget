@@ -1,0 +1,27 @@
+;
+; ACORN System 1 Applications: Acorn 1
+; by mikes on Stardot
+;
+; (Chris Oddy January 2022)
+;
+; entry point $0200
+;
+		.setcpu			"6502"
+		.listbytes		unlimited
+;
+D		:=		$10			; display address
+DISPLAY	:=		$FE0C		; scan the display
+INIT	:=		$FEFB		; Monitor reentry point
+;
+		.org			$0200
+;
+ACORN1:	ldx		#$07
+LOOP:	lda		MESAGE,X
+		sta		D,X
+		dex
+		bpl		LOOP
+		jsr		DISPLAY
+		jmp		INIT
+;
+MESAGE:	.byte	$00,$77,$58,$5c,$50,$54,$00,$30
+;
