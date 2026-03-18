@@ -140,7 +140,7 @@ const int PIN_A15       =  47;
 
 uint8_t app1[] =
   {
-    0xa2, 0x07, 0xbd, 0x10, 0xb0, 0x95, 0x10, 0xca, 0x10, 0xf8, 0x20, 0x0c, 0xfe, 0x4c, 0xfb, 0xfe,
+    0xa2, 0x07, 0xbd, 0x10, 0x80, 0x95, 0x10, 0xca, 0x10, 0xf8, 0x20, 0x0c, 0xfe, 0x4c, 0xfb, 0xfe,
     0x00, 0x77, 0x58, 0x5c, 0x50, 0x54, 0x00, 0x30,
   };
 
@@ -588,6 +588,11 @@ void cli_read_file(void)
   read_binary_file("retrofest.bin", 0x8000);
 }
 
+void cli_load_monitor(void)
+{
+  read_binary_file("monitor.bin", 0xFE00);
+}
+
 void cli_version(void)
 {
   printf("\nVersion:1.1.%d Compile time:%s %s\n", VERSION_INC, __DATE__, __TIME__);
@@ -683,6 +688,11 @@ SERIAL_COMMAND serial_cmds[] =
       '=',
       "Read binary file",
       cli_read_file,
+    },
+    {
+      'M',
+      "Load monitor",
+      cli_load_monitor,
     },
     {
       'o',
@@ -869,7 +879,10 @@ inline void set_data_outputs(void)
 #define RD_MASK  ( 1<< PIN_NRDS)
 #define WR_MASK  ( 1<< PIN_NWDS)
 
-#define IN_ADDR_WINDOW ((gpio_hi_states & 0xC000) == 0x8000)
+
+// 16K from 0x8000
+#define IN_16K_ADDR_WINDOW ((gpio_hi_states & 0xC000) == 0x8000)
+#define IN_60K_ADDR_WINDOW ((gpio_hi_states & 0xF000) != 0x0000)
 
 void ram_emulate(void)
 {
@@ -888,7 +901,7 @@ void ram_emulate(void)
       gpio_hi_states  = sio_hw->gpio_hi_in;
       
       // Is this a write?
-      if( ((gpio_states & WR_MASK) != WR_MASK) && IN_ADDR_WINDOW )
+      if( ((gpio_states & WR_MASK) != WR_MASK) && IN_60K_ADDR_WINDOW )
         {
           // Write
           
@@ -916,7 +929,7 @@ void ram_emulate(void)
           
         }
       
-      if( ((gpio_states & RD_MASK) != RD_MASK) && IN_ADDR_WINDOW )
+      if( ((gpio_states & RD_MASK) != RD_MASK) && IN_60K_ADDR_WINDOW )
         {
 #if USB_FLAGS
           printf("\nR%04X", gpio_hi_states);
@@ -1163,10 +1176,15 @@ int main(void)
   last_menu = &(home_menu[0]);
   the_home_menu = last_menu;
 
-  to_home_menu(NULL);
+  //to_home_menu(NULL);
 
-  init_buttons();
+  //  init_buttons();
 
+  //------------------------------------------------------------------------------
+  // Load the monitor
+  
+  cli_load_monitor();
+  
   //------------------------------------------------------------------------------
   
   while(1)

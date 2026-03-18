@@ -1,1 +1,2 @@
 1. Signals to SD card holder reversed.
+2. Run BUS power to edge connector through jumper for USB power ption.
