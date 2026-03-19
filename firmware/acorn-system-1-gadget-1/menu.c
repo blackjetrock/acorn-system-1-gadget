@@ -490,7 +490,7 @@ void button_read(struct MENU_ELEMENT *e)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-extern uint8_t rom_data[];
+extern uint8_t mem_data[];
 
 void button_blank(struct MENU_ELEMENT *e)
 {
@@ -498,7 +498,7 @@ void button_blank(struct MENU_ELEMENT *e)
   
   for(int k=0; k< 100; k++)
     {
-      rom_data[k] = 0xff;
+      mem_data[k] = 0xff;
     }
 
   oled_clear_display(&oled0);

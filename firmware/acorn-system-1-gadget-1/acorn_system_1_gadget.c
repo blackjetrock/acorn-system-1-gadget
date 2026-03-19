@@ -1,10 +1,14 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// Epson HX-20 Cartridge Emulator
+// Acorn System 1 Memiory Emulator
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Emulates a microcassette
+// Emulates memory
+//
+// Set up to emulate 60K of memory, only page 0 is not emulated.
+// PROMs removed and emulated
+//
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,21 +56,12 @@ void prompt(void);
 void serial_help(void);
 
 ////////////////////////////////////////////////////////////////////////////////
-// Microcassette
-
-int pwsw = 0;
-
-volatile int clk_edge_count  = 0;
-volatile int pwsw_edge_count = 0;
-volatile int wd_edge_count   = 0;
-
-volatile int command_register = 0;
 
 // How much RAM to display 
 #define RAM_SIZE 1024
 
 // Shadow of entire memory space
-volatile uint8_t rom_data[65536];
+volatile uint8_t mem_data[65536];
 
 #define ADDRESS_MASK  0xFFFF
 #define WINDOW_START  0x8000
@@ -76,6 +71,11 @@ volatile uint8_t rom_data[65536];
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// Value that can be set from the keyboard
+// Can be entered as hex or decimal
+
+#define PAR_TYPE_DEC 0
 
 int parameter = 0;
 int keypress = 0;
@@ -316,7 +316,7 @@ void cli_load_app(void)
     {
       app_ptr = app_list[parameter];
       
-      memcpy((void *)&(rom_data[0x8000]), (void *)app_list[parameter], sizeof(app1));
+      memcpy((void *)&(mem_data[0x8000]), (void *)app_list[parameter], sizeof(app1));
 
       printf("\nLoaded app %d", parameter);
     }
@@ -346,20 +346,10 @@ void cli_do_reset(void)
   
 }
 
-void cli_dump_rom(void)
+//------------------------------------------------------------------------------
+
+void cli_snapshot_memory(void)
 {
-  for(int a=0xFE00; a<65536; a++)
-    {
-      if( (a % 64) == 0 )
-        {
-          printf("\n%04X: ", a);
-        }
-
-      printf(" %02X", rom_data[a]);
-    }
-
-  printf("\n");
-  
 }
 
 //------------------------------------------------------------------------------
@@ -375,11 +365,6 @@ void cli_ls(void)
 
 //------------------------------------------------------------------------------
 
-void cli_incr_8000(void)
-{
-  rom_data[0x8000]++;  
-}
-
 void cli_dump_window(void)
 {
   for(int a=WINDOW_START; a<(WINDOW_START+256); a++)
@@ -389,18 +374,71 @@ void cli_dump_window(void)
           printf("\n%04X: ", a);
         }
 
-      printf(" %02X", rom_data[a]);
+      printf(" %02X", mem_data[a]);
     }
 
   printf("\n");
   
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define BYTE_WIDTH 16
+
 void cli_dump_ram(void)
 {
-  for(int a=0x0000; a<0x0800; a++)
+  char ascii[BYTE_WIDTH*3+5];
+  char ascii_byte[5];
+
+  // Bound the address to 64K
+
+  parameter %= 64*1024;
+  
+  // Display memory from address
+  printf("\n");
+
+  ascii[0] = '\0';
+  
+  for(unsigned int z = parameter; z<parameter+512; z++)
     {
-      if( (a % 64) == 0 )
+      int byte = 0;
+      
+      if( (z % BYTE_WIDTH) == 0)
+	{
+	  printf("  %s", ascii);
+	  ascii[0] = '\0';
+	  printf("\n%08X: ", z);
+	}
+
+      byte = mem_data[z];
+
+      printf(" %02X", byte);
+      
+      if( isprint(byte) )
+	{
+	  sprintf(ascii_byte, "%c", byte);
+	}
+      else
+	{
+	  sprintf(ascii_byte, ".");
+	}
+      
+      strcat(ascii, ascii_byte);
+    }
+  
+  printf("\n");
+
+  parameter += 512;
+}
+
+//------------------------------------------------------------------------------
+
+void cli_dump_ram2(void)
+{
+  for(int a=parameter; a<parameter+256; a++)
+    {
+      if( (a % 16) == 0 )
         {
           printf("\n%04X: ", a);
         }
@@ -412,7 +450,7 @@ void cli_dump_ram(void)
             }
         }
       
-      printf(" %02X", rom_data[a]);
+      printf(" %02X", mem_data[a]);
     }
 
   printf("\n");
@@ -424,9 +462,11 @@ void cli_dump_ram(void)
 void prompt(void)
 {
   printf("\n\n(Text Parameter:'%s'", text_parameter);
-  printf("\n(Parameter %d >",
-	 parameter);
-
+#if PAR_TYPE_DEC
+  printf("\n(Parameter %d >", parameter);
+#else
+  printf("\n(Parameter 0x%04X >", parameter);
+#endif
 }
 
 
@@ -448,6 +488,7 @@ void cli_enter_parameter()
     {
       if( ((key = getchar_timeout_us(1000)) != PICO_ERROR_TIMEOUT))
 	{
+#if PAR_TYPE_DEC
 	  switch(key)
 	    {
 	    case '0':
@@ -474,6 +515,45 @@ void cli_enter_parameter()
 	    default:
 	      break;
 	    }
+#else
+	  switch(key)
+	    {
+	    case '0':
+	    case '1':
+	    case '2':
+	    case '3':
+	    case '4':
+	    case '5':
+	    case '6':
+	    case '7':
+	    case '8':
+	    case '9':
+	      parameter *= 16;
+	      parameter += (key - '0');
+	      prompt();
+	      break;
+              
+	    case 'a':
+	    case 'b':
+	    case 'c':
+	    case 'd':
+	    case 'e':
+	    case 'f':
+	      parameter *= 16;
+	      parameter += (key - 'a'+10);
+	      prompt();
+              break;
+              
+	    case 27:
+	    case 13:
+	    case 10:
+	      done = 1;
+	      break;
+	      
+	    default:
+	      break;
+	    }
+#endif
 	}
       else
 	{
@@ -536,7 +616,7 @@ int read_binary_file(char *fn, int address)
 {
   char line[MAX_FILE_LINE];
   char fileline[MAX_FILE_LINE];
-  volatile uint8_t *ptr = &(rom_data[address]);
+  volatile uint8_t *ptr = &(mem_data[address]);
 
   printf("\nLoading %s", fn);
   
@@ -564,7 +644,6 @@ int read_binary_file(char *fn, int address)
       // Read binary file data
       int ni = ff_fread((void *)ptr, 1, 1, fp);
 
-      printf("\n%02X ", (int)*ptr);
       if( f_eof(fp) || (ni == 0))
         {
           // No more file
@@ -579,6 +658,12 @@ int read_binary_file(char *fn, int address)
   ff_fclose(fp);
   unmount_sd();
   return(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void cli_trace_addresses(void)
+{
 }
 
 //------------------------------------------------------------------------------
@@ -675,19 +760,24 @@ SERIAL_COMMAND serial_cmds[] =
       cli_boot_mass,
     },
     {
-      '+',
-      "Increment 0x8000",
-      cli_incr_8000,
-    },
-    {
       'i',
       "Information",
       cli_information,
     },
     {
-      '=',
-      "Read binary file",
+      'L',
+      "Load binary file",
       cli_read_file,
+    },
+    {
+      'S',
+      "Save binary file",
+      cli_read_file,
+    },
+    {
+      'T',
+      "Snapshot emulated memory",
+      cli_snapshot_memory,
     },
     {
       'M',
@@ -695,9 +785,9 @@ SERIAL_COMMAND serial_cmds[] =
       cli_load_monitor,
     },
     {
-      'o',
-      "Dump ROM",
-      cli_dump_rom,
+      't',
+      "Trace",
+      cli_trace_addresses,
     },
     {
       'l',
@@ -883,6 +973,7 @@ inline void set_data_outputs(void)
 // 16K from 0x8000
 #define IN_16K_ADDR_WINDOW ((gpio_hi_states & 0xC000) == 0x8000)
 #define IN_60K_ADDR_WINDOW ((gpio_hi_states & 0xF000) != 0x0000)
+#define IN_64K_ADDR_WINDOW (1)
 
 void ram_emulate(void)
 {
@@ -901,7 +992,7 @@ void ram_emulate(void)
       gpio_hi_states  = sio_hw->gpio_hi_in;
       
       // Is this a write?
-      if( ((gpio_states & WR_MASK) != WR_MASK) && IN_60K_ADDR_WINDOW )
+      if( ((gpio_states & WR_MASK) != WR_MASK) && IN_64K_ADDR_WINDOW )
         {
           // Write
           
@@ -921,10 +1012,10 @@ void ram_emulate(void)
           gpio_hi_states  = sio_hw->gpio_hi_in;
           addr = (gpio_hi_states) & ADDRESS_MASK;
           
-          rom_data[addr] = gpio_states & 0xFF;
+          mem_data[addr] = gpio_states & 0xFF;
           
 #if USB_FLAGS
-          printf("            D:%02X", rom_data[addr]);
+          printf("            D:%02X", mem_data[addr]);
 #endif
           
         }
@@ -945,9 +1036,9 @@ void ram_emulate(void)
           addr = (gpio_hi_states) & ADDRESS_MASK;
 	  
           // Get data and present it on bus
-          set_data(rom_data[addr]);
+          set_data(mem_data[addr]);
 #if USB_FLAGS
-          printf("       D:%02X", rom_data[addr]);
+          printf("       D:%02X", mem_data[addr]);
 #endif
           
           // Wait for RD and WR to be de-asserted
@@ -1172,8 +1263,8 @@ int main(void)
   
   // Set up the OLED menu
   
-  current_menu = &(home_menu[0]);
-  last_menu = &(home_menu[0]);
+  current_menu = (struct MENU_ELEMENT *) &(home_menu[0]);
+  last_menu    = (struct MENU_ELEMENT *) &(home_menu[0]);
   the_home_menu = last_menu;
 
   //to_home_menu(NULL);
