@@ -40263,7 +40263,7 @@ Disassembly of section .data:
 20019f20:	d4f3      	bmi.n	20019f0a <spi_read_blocking+0x76>
 20019f22:	e7e5      	b.n	20019ef0 <spi_read_blocking+0x5c>
 20019f24:	343a3730 	.word	0x343a3730
-20019f28:	36353a31 	.word	0x36353a31
+20019f28:	38343a34 	.word	0x38343a34
 20019f2c:	00000000 	.word	0x00000000
 20019f30:	2072614d 	.word	0x2072614d
 20019f34:	32203931 	.word	0x32203931
