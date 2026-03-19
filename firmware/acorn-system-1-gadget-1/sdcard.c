@@ -702,7 +702,7 @@ void delete_file(char *dir, char *name)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-
+#if 0
 int find_next_file_number(char *dir,char *scan_fmt, char *print_fmt, char *glob)
 {
   int file_n = 0;
@@ -780,4 +780,4 @@ int find_next_file_number(char *dir,char *scan_fmt, char *print_fmt, char *glob)
   return(1);
 }
 
-
+#endif

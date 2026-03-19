@@ -33,6 +33,6 @@ void mount_sd(void);
 void unmount_sd(void);
 int cd_to_dir(char *to_dir);
 int file_list(char *dir);
-int find_next_file_number(char *dir, char *scan_fmt, char *print_fmt, char *glob);
+//int find_next_file_number(char *dir, char *scan_fmt, char *print_fmt, char *glob);
 int file_partial_list(char *dir, int first, int len);
 void delete_file(char *dir, char *name);

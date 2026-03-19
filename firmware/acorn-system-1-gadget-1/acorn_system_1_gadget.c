@@ -78,7 +78,9 @@ void serial_help(void);
 #define RAM_SIZE 1024
 
 // Shadow of entire memory space
-volatile uint8_t mem_data[65536];
+#define MEM_SIZE 65536
+
+volatile uint8_t mem_data[MEM_SIZE];
 
 #define ADDRESS_MASK  0xFFFF
 #define WINDOW_START  0x8000
@@ -362,11 +364,229 @@ void cli_do_reset(void)
   printf("\nDone");
   
 }
+////////////////////////////////////////////////////////////////////////////////
+//
+// Scans the directory and works out the next file number to use
+//
+// Leaves max_filenum with that value
+//
+////////////////////////////////////////////////////////////////////////////////
 
+#define FILE_NAME_FORMAT "as1%04d.bin"
+#define INFO_FILE_NAME_FORMAT "as1%04d.inf"
+
+#define FILE_NAME_SCAN   "as1%d.bin"
+#define FILE_NAME_GLOB   "as1*.bin"
+
+int find_next_file_number(void)
+{
+  int file_n = 0;
+  int num_listfiles = 0;
+  int i;
+  
+  char cwdbuf[FF_LFN_BUF] = {0};
+  FRESULT fr;
+  char const *p_dir;
+
+  //DEBUG_STOP;
+
+  printf("\nAttempting to cd to directory...");
+  if( !cd_to_dir(FILES_DIR) )
+    {
+      unmount_sd();
+      return(0);
+    }
+
+  printf("\nGetting cwd...");
+  fr = f_getcwd(cwdbuf, sizeof cwdbuf);
+
+  // printf will print to console
+  if (FR_OK != fr)
+    {
+      printf("f_getcwd error: %s (%d)\n", FRESULT_str(fr), fr);
+      return(0);
+    }
+  
+  p_dir = cwdbuf;
+
+  printf("\nFile num search: %s\n", p_dir);
+  
+  DIR dj;      /* Directory object */
+  FILINFO fno; /* File information */
+
+  memset(&dj, 0, sizeof dj);
+  memset(&fno, 0, sizeof fno);
+
+  max_filenum = 0;
+  
+  fr = f_findfirst(&dj, &fno, p_dir, FILE_NAME_GLOB);
+
+  if (FR_OK != fr)
+    {
+      printf("f_findfirst error: %s (%d)\n", FRESULT_str(fr), fr);
+      return(0);
+    }
+  
+  while( (fr == FR_OK) && fno.fname[0])
+    { 
+      if (fno.fattrib & AM_DIR)
+	{
+	  // Directory, we ignore these
+	}
+      else
+	{
+	  int filenum;
+	  sscanf(fno.fname, FILE_NAME_SCAN, &filenum);
+
+	  if( filenum > max_filenum )
+	    {
+	      max_filenum = filenum;
+	    }
+	}
+       
+      fr = f_findnext(&dj, &fno); /* Search for next item */
+    }
+  
+  f_closedir(&dj);
+
+  printf("\nFound next file number %d", max_filenum);
+  return(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Writes the buffer to a file.
+// Deletes any file that exists with the same name so that the resulting
+// file is the same size as the buffer
+// Searches the card directory for the highest file number and uses the next one
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void core_writefile(int address, int length)
+{
+  char filename[20];
+  char info_filename[20];
+  int i;
+  FRESULT fr;
+  FIL fp;
+  size_t bytes_written = 0;
+  char line[40];
+
+  //DEBUG_STOP
+
+  printf("\nWriting file to SD card");
+  mount_sd();
+
+  if( !cd_to_dir(FILES_DIR) )
+    {
+      unmount_sd();
+      return;
+    }
+
+  find_next_file_number();
+  sprintf(filename,      FILE_NAME_FORMAT,      ++max_filenum);
+  sprintf(info_filename, INFO_FILE_NAME_FORMAT,   max_filenum);
+
+  printf("\nWriting to %s", filename);
+  
+  oled_clear_display(&oled0);
+  oled_set_xy(&oled0, 0, 0);
+  oled_display_string(&oled0, "Writing");
+  oled_set_xy(&oled0, 0, 8);
+  oled_display_string(&oled0, filename);
+  
+  // Open file for writing
+  fr = f_open(&fp, filename, FA_CREATE_NEW | FA_WRITE);
+
+  if (FR_OK != fr && FR_EXIST != fr)
+    {
+      printf("\nOpen error");
+      //      oled_error("Open error");
+      unmount_sd();
+      return;
+    }
+
+  printf("\nWriting data...");
+
+  // Split up into smaller chunks
+  int length_to_go = length;
+  int addr = address;
+
+#define CHUNK_SIZE 32
+  
+  while( length_to_go > 0 )
+    {
+      if( length_to_go > CHUNK_SIZE )
+        {
+          printf("\nWriting %d bytes at %04X", CHUNK_SIZE, addr);
+          f_write (&fp, (uint8_t *)&(mem_data[addr]), CHUNK_SIZE, &bytes_written);
+          length_to_go -= CHUNK_SIZE;
+          addr += CHUNK_SIZE;
+          printf(" %ld bytes written");
+        }
+      else
+        {
+          printf("\nWriting %d bytes at %04X", length_to_go, addr);
+          f_write (&fp, (uint8_t *)&(mem_data[addr]), length_to_go, &bytes_written);
+          length_to_go = 0;
+          addr += length_to_go;
+          printf(" %ld bytes written");
+        }
+    }
+  
+  
+  fr = f_close(&fp);
+  if (FR_OK != fr)
+    {
+      printf("f_close error: %s (%d)\n", FRESULT_str(fr), fr);
+      unmount_sd();
+      return;
+    }
+
+  //------------------------------------------------------------------------------
+  //
+  // Now write an info file to go with the data
+  // Open file for writing
+  fr = f_open(&fp, info_filename, FA_CREATE_NEW | FA_WRITE);
+
+  if (FR_OK != fr && FR_EXIST != fr)
+    {
+      printf("\nOpen error");
+      //      oled_error("Open error");
+      unmount_sd();
+      return;
+    }
+
+  printf("\nWriting data...");
+
+  // Write the entire buffer in one go
+  f_printf(&fp, "\n*ADDRESS:0000");
+  f_printf(&fp, "\n*LENGTH:%04X", MEM_SIZE);
+  
+  fr = f_close(&fp);
+  if (FR_OK != fr)
+    {
+      printf("f_close error: %s (%d)\n", FRESULT_str(fr), fr);
+      unmount_sd();
+      return;
+    }
+
+  oled_set_xy(&oled0, 0, 3*8);
+  sprintf(line, "%d bytes", bytes_written);
+  oled_display_string(&oled0, line);
+
+  unmount_sd();
+
+  printf("\nDone.\n");
+}
 //------------------------------------------------------------------------------
+//
+// Save all of memory to SD card
+//
 
 void cli_snapshot_memory(void)
 {
+  core_writefile(0x0000, MEM_SIZE);
 }
 
 //------------------------------------------------------------------------------
