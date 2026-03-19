@@ -51,6 +51,23 @@
 #define MAX_FILE_LINE 200
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+// Tracing of processor accesses
+//
+
+#define TRACE_ON 1
+
+// How many addresses are traced
+#define TRACE_N   32
+
+volatile int trace_i = 0;
+volatile int trace_running = 0;
+
+volatile uint16_t trace_addr[TRACE_N];
+volatile uint8_t trace_value[TRACE_N];
+volatile char trace_type[TRACE_N];
+
+////////////////////////////////////////////////////////////////////////////////
 
 void prompt(void);
 void serial_help(void);
@@ -661,9 +678,25 @@ int read_binary_file(char *fn, int address)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+// trace what the processor is doing
 
 void cli_trace_addresses(void)
 {
+  trace_i = 0;
+  trace_running = 1;
+}
+
+void cli_dump_trace(void)
+{
+  printf("\nTrace\n");
+  printf("\nTrace index;%d Trace running:%d\n", trace_i, trace_running);
+  
+  for(int i = 0; i< TRACE_N; i++)
+    {
+      printf("\n%02X: %04X %c %02X", i, trace_addr[i], trace_type[i], trace_value[i]);
+    }
+  printf("\n");
 }
 
 //------------------------------------------------------------------------------
@@ -788,6 +821,11 @@ SERIAL_COMMAND serial_cmds[] =
       't',
       "Trace",
       cli_trace_addresses,
+    },
+    {
+      'u',
+      "Dump trace",
+      cli_dump_trace,
     },
     {
       'l',
@@ -957,7 +995,11 @@ inline void set_data_outputs(void)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Emulate a RAM chip
+// Emulate memory
+//
+// Reads come from emulated memory unles out of range for emulation.
+// Writes are always written to emulation memory, so all 64K has values.
+//
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -974,6 +1016,7 @@ inline void set_data_outputs(void)
 #define IN_16K_ADDR_WINDOW ((gpio_hi_states & 0xC000) == 0x8000)
 #define IN_60K_ADDR_WINDOW ((gpio_hi_states & 0xF000) != 0x0000)
 #define IN_64K_ADDR_WINDOW (1)
+
 
 void ram_emulate(void)
 {
@@ -996,10 +1039,6 @@ void ram_emulate(void)
         {
           // Write
           
-#if USB_FLAGS
-          printf("\nW%04X", gpio_hi_states);
-#endif
-          // Write
           // data lines inputs
           //set_data_inputs();
           
@@ -1013,19 +1052,24 @@ void ram_emulate(void)
           addr = (gpio_hi_states) & ADDRESS_MASK;
           
           mem_data[addr] = gpio_states & 0xFF;
-          
-#if USB_FLAGS
-          printf("            D:%02X", mem_data[addr]);
+
+#if TRACE_ON
+          if( trace_running )
+            {
+              trace_addr[trace_i] = addr;
+              trace_value[trace_i] = mem_data[addr];
+              trace_type[trace_i++] = 'W';
+              if( trace_i == TRACE_N )
+                {
+                  trace_running = 0;
+                }
+            }
 #endif
-          
+
         }
       
       if( ((gpio_states & RD_MASK) != RD_MASK) && IN_60K_ADDR_WINDOW )
         {
-#if USB_FLAGS
-          printf("\nR%04X", gpio_hi_states);
-#endif
-          
           // Read
           // data lines outputs
           set_data_outputs();
@@ -1052,7 +1096,7 @@ void ram_emulate(void)
               printf("  %02X", gpio_get(CE_PIN));
 #endif
               // We look for CE
-              if( (gpio_states & RD_MASK) != RD_MASK  )
+              if( (gpio_states & RD_MASK) == RD_MASK  )
                 {
                   // CE high, we are not selected
                   // data lines inputs
@@ -1063,6 +1107,20 @@ void ram_emulate(void)
                   break;
                 }
             }
+
+#if TRACE_ON
+          if( trace_running )
+            {
+              trace_addr[trace_i] = addr;
+              trace_value[trace_i] = mem_data[addr];
+              trace_type[trace_i++] = 'R';
+              if( trace_i == TRACE_N )
+                {
+                  trace_running = 0;
+                }
+            }
+#endif
+
         }
     }
 }
