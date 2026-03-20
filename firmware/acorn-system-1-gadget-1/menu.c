@@ -511,20 +511,24 @@ void button_blank(struct MENU_ELEMENT *e)
   draw_menu(&oled0, current_menu, true);
 }
 
+//
 
 const struct MENU_ELEMENT home_menu[] =
   {
-   {BUTTON_ELEMENT, "List",                       NULL,     button_list},
-   {BUTTON_ELEMENT, "Write",                      NULL,     button_write},
+    // List files, allowing one to be selected for loading
+    {BUTTON_ELEMENT, "List",                       NULL,     button_list},
+
+    // Write memory snapshot to SD card
+   {BUTTON_ELEMENT, "Snapshot",                    NULL,     button_write},
 #if 0
-   {BUTTON_ELEMENT, "Display",                    NULL,     button_display},
+   {BUTTON_ELEMENT, "Display",                     NULL,     button_display},
 #endif   
-   {BUTTON_ELEMENT, "Blank",                      NULL,     button_blank},
+   {BUTTON_ELEMENT, "Blank",                       NULL,     button_blank},
 #if 0   
-   {BUTTON_ELEMENT, "Read",                       NULL,     button_read},
+   {BUTTON_ELEMENT, "Read",                        NULL,     button_read},
 #endif
-   {BUTTON_ELEMENT, "Exit",                       NULL,     button_exit},
-   {MENU_END,       "",                           NULL,     NULL},
+   {BUTTON_ELEMENT, "Exit",                        NULL,     button_exit},
+   {MENU_END,       "",                            NULL,     NULL},
   };
 
 // Clear flag indicates whether we redraw the menu text and clear the screen. Or not.

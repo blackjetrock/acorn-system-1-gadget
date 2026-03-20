@@ -931,6 +931,17 @@ void cli_load_monitor(void)
   read_binary_file("monitor.bin", 0xFE00);
 }
 
+void cli_load_basic(void)
+{
+  read_binary_file("System BASIC.bin", 0xC000);
+}
+
+void cli_load_cos40(void)
+{
+  read_binary_file("COS80A.bin", 0xF800);
+}
+
+
 void cli_version(void)
 {
   printf("\nVersion:1.1.%d Compile time:%s %s\n", VERSION_INC, __DATE__, __TIME__);
@@ -1036,6 +1047,16 @@ SERIAL_COMMAND serial_cmds[] =
       'M',
       "Load monitor",
       cli_load_monitor,
+    },
+    {
+      'B',
+      "Load BASIC",
+      cli_load_basic,
+    },
+    {
+      'C',
+      "Load COS40",
+      cli_load_cos40,
     },
     {
       't',
