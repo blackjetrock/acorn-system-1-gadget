@@ -1,4 +1,4 @@
-26261808546850238
+26260036192879034
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -104264,20 +104264,6 @@ Varistor VF
 0
 2
 2
-ajm-acorn
-Conn_uSDcard
-
-
-0
-13
-9
-ajm-acorn
-DIN41612_Q_2x32_Female_Horizontal_THT
-DIN41612 connector, type Q, Horizontal, 2 rows 32 pins wide, https://b2b.harting.com/files/livebooks/en/PRD0200000100063/downloads/livebook.pdf
-DIN 41612 IEC 60603 Q
-0
-64
-64
 ajm-hp25
 hp25-display-socket
 Through hole straight socket strip, 1x20, 2.54mm pitch, single row (from Kicad 4.0.7), script generated
@@ -104320,6 +104306,13 @@ qfp-44-1_0_pitch
 0
 44
 44
+ajm-sdcard
+Conn_uSDcard
+
+
+0
+13
+9
 compucorp
 Untitled
 
