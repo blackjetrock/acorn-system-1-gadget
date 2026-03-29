@@ -1472,6 +1472,11 @@ void ram_emulate(void)
                 }
             }
 
+          if( (addr & 0xFFFE) == 0x1840 )
+            {
+              printf("\nRead from %04X\n", addr);
+              
+            }
 #if TRACE_ON
           if( trace_running )
             {
