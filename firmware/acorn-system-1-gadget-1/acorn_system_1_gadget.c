@@ -56,6 +56,26 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+// VDU registers
+#define NUM_VDU_REGS 20
+
+volatile uint8_t vdu_reg[NUM_VDU_REGS];
+volatile uint8_t vdu_addr = 0xcc;
+
+#define VDU_REG_HOR_DISP  1
+#define VDU_REG_VER_DISP  6
+
+#define VDU_REG_STARTH   12
+#define VDU_REG_STARTL   13
+#define VDU_REG_CURSRH   14
+#define VDU_REG_CURSRL   15
+
+#define VDU_START_ADDRESS (vdu_reg[VDU_REG_STARTH]*256+vdu_reg[VDU_REG_STARTL])
+#define VDU_CURSR_ADDRESS (vdu_reg[VDU_REG_CURSRH]*256+vdu_reg[VDU_REG_CURSRL])
+#define VDU_NUM_CHARS     (vdu_reg[VDU_REG_HOR_DISP]*vdu_reg[VDU_REG_VER_DISP])
+
+////////////////////////////////////////////////////////////////////////////////
+//
 // Tracing of processor accesses
 //
 
@@ -323,6 +343,24 @@ void cli_display_program_slot(void)
   printf("\n\n");
 }
 
+void cli_display_vdu_regs(void)
+{
+  printf("\nVDU Regs\n");
+
+  printf("\nVDU_START:     %04X", VDU_START_ADDRESS);
+  printf("\nVDU_NUM_CHARS: %04X (%d)", VDU_NUM_CHARS, VDU_NUM_CHARS);
+  
+  printf("\nAddr:%02X", vdu_addr);
+
+  for(int i=0; i<NUM_VDU_REGS; i++)
+    {
+      printf("\n%02X:%02X", i, vdu_reg[i]);
+    }
+
+  printf("\n");
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -353,7 +391,10 @@ void cli_get_vdu(void)
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t screen[80*25];
+uint8_t screen[8192];
+
+int cursor_on = 1;
+int cursor_counter = 0;
 
 void update_screen(void)
 {
@@ -361,21 +402,52 @@ void update_screen(void)
   // Save Cursor Position: ESC 7 (DECSC)
   // Restore Cursor Position: ESC 8 (DECRC)
 
+  cursor_counter++;
+
+  if( cursor_counter > 12 )
+    {
+      cursor_on = !cursor_on;
+      cursor_counter = 0;
+    }
+  
   // Compare screen buffer with memory, update any changes
   int x = 0;
   int y = 0;
+
+  int vdu_start = VDU_START_ADDRESS;
+  int vdu_addr = (vdu_start & 0x07FF) | 0x1000;
+  int cur_addr = (VDU_CURSR_ADDRESS & 0x07FF) | 0x1000;
+  
+  printf("%c7", 27);
+  printf("%c[?25l", 27);
   
   for(int i=0; i< 2000; i++)
     {
-      if( mem_data[0x1000+i] != screen[i] )
+      if( mem_data[vdu_addr] != screen[i],1 )
         {
-          printf("%c7", 27);
-          printf("%c[%d;%dH", 27, y, x);
-          printf("%c", mem_data[0x1000+i]);
-          printf("%c8", 27);
-          screen[i] = mem_data[0x1000+i];
+
+          printf("%c[%d;%dH", 27, y+2, x+2);
+          if( cur_addr == vdu_addr )
+            {
+              if( cursor_on )
+                {
+                  printf("%c", '_');
+                }
+              else
+                {
+                  printf("%c", mem_data[vdu_addr]);
+                }
+            }
+          else
+            {
+              printf("%c", mem_data[vdu_addr]);
+            }
+          
+          //screen[i] = mem_data[vdu_addr];
         }
-      
+
+      vdu_addr = ((vdu_addr+1) & 0x07ff) | 0X1000;
+
       x++;
       
       if( x >= 80 )
@@ -384,6 +456,9 @@ void update_screen(void)
           y++;
         }
     }
+  
+  printf("%c8", 27);
+  printf("%c[?25h", 27);
 }
 
 //------------------------------------------------------------------------------
@@ -1276,6 +1351,11 @@ SERIAL_COMMAND serial_cmds[] =
       "Load app1",
       cli_load_app,
     },
+    {
+      'r',
+      "Display VDU Regs",
+      cli_display_vdu_regs,
+    },
   };
 
 
@@ -1382,10 +1462,16 @@ inline void set_data_outputs(void)
 #define IN_64K_ADDR_WINDOW (1)
 
 
+
 void ram_emulate(void)
 {
   
   irq_set_mask_enabled( 0xFFFFFFFF, false );
+
+  for(int i = 0; i< NUM_VDU_REGS; i++)
+    {
+      vdu_reg[i] = 0xaa;
+    }
   
   while(1)
     {
@@ -1417,6 +1503,17 @@ void ram_emulate(void)
           
           mem_data[addr] = gpio_states & 0xFF;
 
+          // Capture VDU controller writes
+          if( addr == 0x1840 )
+            {
+              vdu_addr = mem_data[addr];
+            }
+
+          if( addr == 0x1841 )
+            {
+              vdu_reg[vdu_addr] = mem_data[addr];
+            }
+          
 #if TRACE_ON
           if( trace_running )
             {
@@ -1444,7 +1541,14 @@ void ram_emulate(void)
           addr = (gpio_hi_states) & ADDRESS_MASK;
 	  
           // Get data and present it on bus
-          set_data(mem_data[addr]);
+          if( addr == 0x1841 )
+            {
+              set_data(vdu_reg[vdu_addr]);
+            }
+          else
+            {
+              set_data(mem_data[addr]);
+            }
 #if USB_FLAGS
           printf("       D:%02X", mem_data[addr]);
 #endif
@@ -1472,11 +1576,6 @@ void ram_emulate(void)
                 }
             }
 
-          if( (addr & 0xFFFE) == 0x1840 )
-            {
-              printf("\nRead from %04X\n", addr);
-              
-            }
 #if TRACE_ON
           if( trace_running )
             {
