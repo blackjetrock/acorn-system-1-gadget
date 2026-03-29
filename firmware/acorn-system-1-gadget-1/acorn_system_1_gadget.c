@@ -52,6 +52,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+#define ACORN_PORTD   0x2E21
+
+////////////////////////////////////////////////////////////////////////////////
+//
 // Tracing of processor accesses
 //
 
@@ -319,6 +323,8 @@ void cli_display_program_slot(void)
   printf("\n\n");
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 
 void cli_get_vdu(void)
 {
@@ -344,6 +350,86 @@ void cli_get_vdu(void)
 
   printf("|\n\\--------------------------------------------------------------------------------/");
   printf("\n");
+}
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t screen[80*25];
+
+void update_screen(void)
+{
+  // Cursor Position (Row, Col): ESC [ <row>;<col> H (e.g., 10,10)
+  // Save Cursor Position: ESC 7 (DECSC)
+  // Restore Cursor Position: ESC 8 (DECRC)
+
+  // Compare screen buffer with memory, update any changes
+  int x = 0;
+  int y = 0;
+  
+  for(int i=0; i< 2000; i++)
+    {
+      if( mem_data[0x1000+i] != screen[i] )
+        {
+          printf("%c7", 27);
+          printf("%c[%d;%dH", 27, y, x);
+          printf("%c", mem_data[0x1000+i]);
+          printf("%c8", 27);
+          screen[i] = mem_data[0x1000+i];
+        }
+      
+      x++;
+      
+      if( x >= 80 )
+        {
+          x = 0;
+          y++;
+        }
+    }
+}
+
+//------------------------------------------------------------------------------
+
+void cli_vdu_loop(void)
+{
+  int done = 0;
+  int  key;
+  
+  printf("\nVDU Loop...\n");
+
+  for(int i=0; i<200; i++)
+    {
+      printf("\n");
+    }
+  
+  // Inital screen display
+  
+  cli_get_vdu();
+  
+  while(!done)
+    {
+      update_screen();
+      
+      if( ((key = getchar_timeout_us(1000)) != PICO_ERROR_TIMEOUT))
+        {
+          switch(key)
+            {
+            case '_':
+              cli_get_vdu();
+              break;
+              
+            case 27:
+              done = 1;            
+              printf("\nExit from VDU Loop\n");
+              break;
+
+            default:
+              // Send to Acorn
+              mem_data[ACORN_PORTD] = key | 0x80;
+              sleep_us(100);
+              mem_data[ACORN_PORTD] = key;
+              break;
+            }
+	}
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -965,7 +1051,7 @@ void cli_load_basic(void)
 
 void cli_load_cos40(void)
 {
-  read_binary_file("COS80A.bin", 0xF800);
+  read_binary_file("COS40.bin", 0xF800);
 }
 
 
@@ -1064,6 +1150,11 @@ SERIAL_COMMAND serial_cmds[] =
       'v',
       "Get VDU data",
       cli_get_vdu,
+    },
+    {
+      'V',
+      "VDU Loop",
+      cli_vdu_loop,
     },
     {
       'S',

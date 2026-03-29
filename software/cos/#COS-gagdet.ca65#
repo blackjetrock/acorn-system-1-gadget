@@ -1,0 +1,1481 @@
+;
+; Acorn System COS
+;
+; Produced from an original ROM purchased in December 1981 and 
+; disassembled during 1982, transferred to CA65 format in 2018.
+; Revisited in 2020, commenting added to and mistakes corrected.
+;
+; Chris Oddy
+;
+		.setcpu 	"6502"
+		.listbytes	unlimited
+;
+; *** Zeropage Registers ***
+;
+filead	:= $C9		; filename address (2 bytes)
+;
+; Note: some registers are used for different purposes during load and save
+;					  Used during save
+loadad	:= $CB		; file load address (2 bytes)				
+execad	:= $CD		; file execution address (2 bytes)
+starad	:= $CF		; data start address (2 bytes)
+endad	:= $D1		; data end address + 1 (2 bytes)
+sy1sta	:= $CB		; system 1 format file start address (2 bytes)
+sy1end	:= $CD		; system 1 format file end address +1 (2 bytes)
+blksiz	:= $CF		; block size (1 byte)
+blkno	:= $D0		; block number (2 bytes)
+blkflg	:= $D2		; block flags (bit 5 clear for 1st block, bit 6 clear if block has no data, bit 7 clear for last block) (1 byte)
+starpt	:= $D3		; start	data pointer (2 bytes)
+endpt	:= $D5		; end data pointer (2 bytes)
+;					  Used during load
+lflag	:= $CD		; load flag (bit 7 set if load address valid) (1 byte)
+ldchk	:= $CE		; load checksum (1 byte)
+stradr	:= $CF		; file (or data) start address (2 bytes)
+endadr	:= $D1		; file (or data) end address +1 (2 bytes)
+;					  System 1 format file header
+fhstar	:= $D4		; file header start address (2 bytes)
+fhend	:= $D6		; file header end address (2 bytes)
+;					; System 2 format block header
+bhload	:= $D4		; block header load address (2 bytes)
+bhexec	:= $D6		; block header execution address (2 bytes)
+bhlen	:= $D8		; block header block length (1 byte)
+bhno	:= $D9		; block header block number (2 bytes)
+bhflag	:= $DB		; block header block flags (bit 5 clear for 1st block, bit 6 clear if block has no data, bit 7 clear for last block) (1 byte)
+chksum	:= $DC		; checksum (1 byte)
+chkflg	:= $DD		; check flags (bit 6 set if System 1 'unnamed' file, bit 7 set for FLOAD 'don't check blocks') (1 byte)
+lineno	:= $DE		; screen current linenumber, 0 is bottom of screen (1 byte)
+line	:= $DF		; start address of screen current line, top of screen is 0 (2 bytes)
+cursor	:= $E1		; cursor position on the screen current line, bit 7 is set if screen output is disabled (1 byte) (1 byte)
+curadr	:= $E2		; screen cursor address (2 bytes)
+crtcad	:= $E4		; MSB of screen cursor CRTC address (1 byte)
+temp_y	:= $E5		; temporary Y (1 byte)
+pc		:= $E6		; program counter (2 bytes)
+mesage	:= $E8		; message flag ($FF - no messages, 0 - messages enabled) (1 byte)
+wait_y	:= $E9		; temporary Y storage (1 byte)
+temp_a	:= $EC		; temporary A storage (1 byte)	
+drive	:= $EA		; drive (1 byte)
+temp_x	:= $EB		; temporary X storage (1 byte)
+not_pr	:= $FE		; non-printing character (1 byte)
+irqa	:= $FF		; storage for A on IRQ (1 byte)
+;
+buffer	:= $0100	; input buffer (64 bytes)
+filnam	:= $0140	; string buffer (64 bytes)
+;
+; *** RAM Workspace ***
+;
+stack	:= $01FF	; top of processor stack ($0180 to $01FF)
+;
+; OS redirection vectors ($0200 to $021D)
+;
+NMIVEC	:= $0200	; vector to NMI service routine
+BRKVEC	:= $0202	; vector to BRK service routine
+IRQVEC	:= $0204	; vector to IRQ service routine
+COMVEC	:= $0206	; vector to COS Command Line Interpreter (OSCCLI)
+WRCVEC	:= $0208	; vector to OS WRite CHaracter (OSWRCH)
+RDCVEC	:= $020A	; vector to OS REad CHaracter (OSRDCH
+LODVEC	:= $020C	; vector to OS LOAD file (OSLOAD)
+SAVVEC	:= $020E	; vector to OS SAVE file (OSSAVE)
+RDRVEC	:= $0210	; vector to OS ReaD ARguments (OSRDAR)
+STRVEC	:= $0212	; vector to OS SeT ARguments (OSSTAR)
+BGTVEC	:= $0214	; vector to OS Byte GET (OSBGET)
+BPTVEC	:= $0216	; vector to OS Byte PUT (OSBPUT)
+FNDVEC	:= $0218	; vector to OS FiND (open) file (OSFIND)
+SHTVEC	:= $021A	; vector to OS SHUT file (OSSHUT)
+ECOVEC	:= $021C	; vector to ECONET handler
+;
+; *** Hardware Addresses ***
+;
+; 6502 CPU Board 8154 PIA (IC2) / 6502A CPU Board 6522 VIA (IC7) Keyboard Interface
+;
+; Note COS will work with either the 6502 CPU 8154 or 6502A CPU 6522 keyboard interfaces however the cassette interface will only work via a 6502 8154
+;
+port_a5	:= $2E05	; bit 5 of Port A (8154 only, NHITONE input))
+port_a	:= $2E20	; 8154 Port A Data Register (cassette interface)
+port_b	:= $2E21	; 8154 Port B / 6522 Port A Data Register (keyboard)
+ddr_a	:= $2E22	; 8154 Port A Data Direction Register
+ddr_b	:= $2E23	; 8154 Port B Data Direction Register (not used)
+;
+; Versatile Interface Board (VIB) 6522 (IC7) Printer Interface
+;
+; Move VIA address so it is in memory emulated by the gadget
+;
+dr_b	:= $2C00	; Port B Data Register (not used)
+dr_a	:= $2C01	; Port A Data Register (printer port)
+dd_b	:= $2C02	; Port B Data Direction Register
+dd_a	:= $2C03	; Port A Data Direction Register
+pcr	:= $2C0C	; Peripheral Control Register
+;
+; *** Assembler switch to select VDU ***
+;
+; The original COS was compatible with the 40x25 (Teletext) VDU and automatically detects if the 6845 CRTC
+; is an early MC6845 type or later MC6845*1 type or equivalent and configures the CRTC appropriately.
+
+; This source code has been modified to also incorporate the CRTC configuration for the 80x25 VDU.
+; There is a choice of two 80x25 VDU CRTC configurations:
+; The first '80A' uses the register values as detailed in the System 5 Manual, these work however I have produced a slightly
+; modified configuration '80B' which works better with some monitors and VGA/HDMI video converters.
+; It has a corrected Horizontal Sync Pulse Width closer to the PAL standard (4.7uS), a shorter Vertical Sync Pulse Width
+; (the same as the BBC Computer's Mode 3) and the screen is moved slightly to the right so that it matches the 40x24 (Teletext) VDU
+; avoiding the need to adjust monitors/video converters when switching computers.
+;
+; Register R2 'Horizontal Sync Position': original value $66, modified value $60 moves the screen right
+; Register R3 '(Horizontal) Sync Pulse Width': original value $62, modified value $28 Horizontal Sync Pulse Width 4uS, Vertical Sync Pulse Width 128uS
+;
+; As the code for only the 40x25 configurations or one of the 80x25 configurations will fit in the EPROM a 'switch' allows a version to be assembled to suit.
+;
+; choose from:
+;.define vdutyp 40 	; (COS40)  40x25 (Teletext) VDU configurations
+;.define vdutyp 80	; (COS80A) selects 80x25 VDU "80A" original configuration
+.define vdutyp 81	; (COS80B) selects 80x25 VDU "80B" modified configuration
+;
+.if vdutyp = 40
+;
+; 6845 40x25 (Teletext) VDU
+;
+vdua	:= $0400	; VDU RAM Page 0
+vdub	:= $0500	; VDU RAM Page 1
+vduc	:= $0600	; VDU RAM Page 2
+vdud	:= $0700	; VDU RAM Page 3
+vduadd	:= $0800	; 6845 Register Select
+vdudat	:= $0801	; 6845 Data Register
+vduwid	:= $28		; width of screen (40 characters)
+.endif
+;
+.if vdutyp = 80 .or vdutyp = 81
+;
+; 6845 80x25 VDU
+;
+vdua	:= $1000	; VDU RAM Page 0
+vdub	:= $1100	; VDU RAM Page 1
+vduc	:= $1200	; VDU RAM Page 2
+vdud	:= $1300	; VDU RAM Page 3
+vdue	:= $1400	; VDU RAM Page 4
+vduf	:= $1500	; VDU RAM Page 5
+vdug	:= $1600	; VDU RAM Page 6
+vduh	:= $1700	; VDU RAM Page 7
+vduadd	:= $1840	; 6845 Register Select
+vdudat	:= $1841	; 6845 Data Register
+vduwid	:= $50		; width of screen (80 characters)
+.endif
+;
+; VDU Screen Parameters
+;
+nlines	:= $18		; 24 lines
+;
+; *** ROMs ***
+;
+; Extension ROM
+EXTROM	:= $F000	; Start address of COS extension ROM (if present)vdu
+;
+; BASIC ROM
+BASIC	:= $C2B2	; BASIC ROM Entry POint
+;
+; *** ASCII Control Codes ***
+;
+SOH		:= $01		; Start Of Header			(Cursor Left)
+STXX	:= $02		; Start of TeXt				(Start Printer)
+ETX		:= $03		; End of TeXt				(End Printer)
+ACK		:= $06		; ACKnowledge				(Start Screen)
+BS		:= $08		; BackSpace
+HT		:= $09		; Horizontal Tab
+LF		:= $0A		; LineFeed
+VT		:= $0B		; Vertical Tab
+FF		:= $0C		; FormFeed
+CR		:= $0D		; Carriage Return
+DC1		:= $11		; Device Control 1			(Read Character)
+DC3		:= $13		; Device Control 3			(Cursor Right)
+NAK		:= $15		; Negative AcKnowledge		(End Screen)
+ETB		:= $17		; End of Transmission Block	(Cursor Up)
+CAN		:= $18		; CANcel
+SUB		:= $1A		; SUBstitute				(Cursor Down)
+RS		:= $1E		; Record Separator			(Home Cursor)
+SPACE	:= $20		; Space Bar
+DEL		:= $7F		; DELete
+;
+		.org	$F800		; start address of System COS ROM
+;
+							; Output a String of Characters
+OUTSTR:	pla					; retrieve return PC (-1) LSB
+		sta		pc
+		pla
+		sta		pc+1		; and MSB
+outnxt:	ldy		#$00		; Y=0
+		ldx		#pc			; point x at pc
+		jsr		INCCMP		; increment pointer
+		lda		(pc),y		; get character from string
+		bmi		eos			; end of string ?
+		jsr		OSWRCH		; output character
+		jmp		outnxt		; next character
+eos:	jmp		(pc)		; continue execution after string
+
+cancel:	jsr		OSCRLF		; start again
+
+							; Get Command From Buffer
+COMIN:	lda		#'*'		; display prompt
+		jsr		OSWRCH
+buffin:	ldx		#$FF
+nxtchr:	inx					; increment buffer pointer
+		cpx		#$40		; buffer full ? (64 bytes)
+		bcs		bufful
+read:	jsr		OSECHO		; read character from input channel and echo
+		cmp		#CAN		; cancel ?
+		beq		cancel		; yes - start again
+		cmp		#DEL		; delete ?
+		bne		nodel		; no - branch
+bufful:	dex					; backup buffer pointer
+		bpl		read		; and read another character
+		bmi		buffin		; start of line - start again
+nodel:	sta		buffer,x	; put character in buffer
+		cmp		#CR			; CR ?
+		bne		nxtchr		; no - read next character
+		rts					; yes - return
+
+							; Output Header Addresses
+OUT2AD:	ldx		#fhstar		; pointer to System 1 file header start address
+							; or System 2 block header load address
+		jsr		OUTADR		; output first address, a space, then the second address
+		
+							; Output the Address at X+1, X
+OUTADR:	lda		$01,x		; first byte
+		jsr		OUTBYT		; output the second byte (at X+1)
+		inx					; increment the pointer to the next address
+		inx
+		lda		$FE,x		; output the first byte (now at X-2)
+		jsr		OUTBYT
+outspc:	lda		#SPACE		; followed by a space
+		jmp		OSWRCH		; and return
+
+							; Output the Byte in A In Hex
+OUTBYT:	pha					; save A
+		lsr		a			; start with the upper nibble
+		lsr		a			; shift to the lower nibble position
+		lsr		a
+		lsr		a
+		jsr		OUTDIG		; and output
+		pla					; retrieve A and output the lower nibble
+
+							; Output the Hex Digit in A
+OUTDIG:	and		#$0F		; mask off the upper nibble
+		cmp		#$0A		; is it A-F ?
+		bcc		ascii		; no
+		adc		#$06		; yes - add offset to 'A'
+ascii:	adc		#'0'		; convert to ASCII
+		jmp		OSWRCH		; output character and return
+
+							; Get Filename From Input Buffer 
+GTFLNM:	jsr		RDIBUF		; read next non-space character from input buffer
+		ldx		#$00		; filename buffer pointer
+		cmp		#'"'		; is it a " ?
+		beq		quote		; yes 
+		inx					; increment filename buffer pointer
+		bne		unname		; no - must be a System 1 'unnamed file' (always branch)
+namerr:	jmp		synerr
+quote:	iny					; increment input buffer pointer
+		lda		buffer,y	; read another character
+		cmp		#CR			; CR ?
+		beq		namerr		; yes - syntax error
+		sta		filnam,x	; put character in filename buffer
+		inx					; increment filename buffer pointer
+		cmp		#'"'		; was it a second " ?	
+		bne		quote		; no keep reading buffer
+		iny					; yes - increment input buffer pointer
+		lda		buffer,y	; check for further "
+		cmp		#'"'		; could be a " in filename
+		beq		quote		; yes - represented by "", continue getting filename
+unname:	lda		#CR
+		sta		filnam-1,x	; terminate filename with CR
+		lda		#<filnam	; point filename buffer pointer
+		sta		filead		; at the filename buffer
+		lda		#>filnam
+		sta		filead+1
+		ldx		#filead		; point X at filename pointer
+		rts					; and return
+
+							; Copy File Parameters and Check Filename Length
+CPYPAR:	ldy		#$00		; source file parameters pointer
+move:	lda		$00,x		; read source file parameter
+		sta		filead,y	; copy to file parameter table
+		inx					; increment source pointer
+		iny					; increment destination pointer
+		cpy		#$0A		; have we copied all 10 bytes (5 addresses) ?
+		bcc		move		; no - continue
+		ldy		#$FF		; Y=-1
+		lda		#CR			; check the length of the filename
+notcr:	iny
+		cpy		#$11		; filename too long, >16 characters ?
+		bne		notend
+		jsr		OUTSTR
+		.byte	"Name"		; output 'Name' error message
+		nop
+		brk					; and break
+notend:	cmp		(filead),y	; compare next filename character with CR
+		bne		notcr		; if not CR go around again
+		cpy		#$00		; CR - return with Y containing the length of the filename
+		rts					; and Z=1 if length is 0
+		
+space:	iny
+							; Read the Yth Character From the Input Buffer
+RDIBUF:	lda		buffer,y
+		cmp		#SPACE		; ignoring spaces
+		beq		space
+		rts					; and return
+
+							; Test Key Value In A For Hex
+HEXKEY:	cmp		#'0'		; > '0' ?
+		bcc		nothex		; return invalid hex
+		cmp		#':'		; < '9' ?
+		bcc		hex			; yes - valid hex
+		sbc		#$07		; convert 'A' to 'F'
+		bcc		nothex		; if < 'A' then not hex
+		cmp		#'@'		; > 'F' ?
+		bcs		hexrtn		; return with C=1, invalid hex digit
+hex:	and		#$0F		; valid hex digit, convert to ASCII
+		clc					; (unnecessarily set) C=0
+hexrtn:	rts					; and return, valid hex digit
+nothex:	sec					; C=1
+		rts					; and return, invalid hex digit
+
+							; Get (up to) 4-digit Hex Parameter from Input Buffer and Store at X
+HXPARA:	lda		#$00		; set parameter to 0
+		sta		$00,x
+		sta		$01,x
+		sta		$02,x
+		jsr		RDIBUF		; ignore leading spaces
+rdnxch:	lda		buffer,y	; read character from input buffer
+		jsr		HEXKEY		; is it hex ?
+		bcs		delim		; branch if not hex (delimiter character ?)
+		asl		a			; shift up a digit
+		asl		a
+		asl		a
+		asl		a
+		sty		$02,x		; temporarily save the input buffer pointer
+		ldy		#$04
+shfdig:	asl		a			; shift X, X+1 and A left one digit (4-bits)
+		rol		$00,x
+		rol		$01,x
+		dey
+		bne		shfdig
+		ldy		$02,x		; retrieve the input buffer pointer
+		iny					; increment buffer pointer
+		bne		rdnxch		; always branch to read next character
+delim:	lda		$02,x		; set Z if no parameter found
+		rts					; and return
+
+											; COS Command Table
+COMTAB:	.byte	"BASIC",CR,>BASIC,<BASIC	; enter BASIC
+		.byte	"CAT",>CCAT,<CCAT			; catalogue cassette
+		.byte	"LOAD",>LOAD,<LOAD			; load file from cassette
+		.byte	"SAVE",>SAVE,<SAVE			; save file to cassette
+		.byte	"GO",>GO,<GO				; execute address
+		.byte	"RUN",>RUN,<RUN				; run file from cassette
+		.byte	"MEM",>MEM,<MEM				; view memory
+		.byte	"MON",>MON,<MON				; enable messages
+		.byte	"NOMON",>NOMON,<NOMON		; disable messages
+		.byte	"DRIVE",>DRIV,<DRIV			; select drive (has no effect in COS) 
+		.byte	"USE",>USE,<USE				; set qualifier (has no effect in COS)
+		.byte	"FLOAD",>FLOAD,<FLOAD		; finish loading file from cassette
+		.byte	>COMERR,<COMERR				; illegal command
+
+							; COS Command Line Interpreter
+COSCLI:	ldx		#$FF		; X is command table pointer, initially -1
+		cld
+nxtcom:	ldy		#$00		; Y is input buffer pointer
+		jsr		RDIBUF		; ignore leading spaces in input buffer
+		dey					; backup input buffer pointer
+cmpcmd:	iny					; increment input buffer pointer
+		inx					; increment command table pointer
+rdcom:	lda		COMTAB,x	; read next character of command from command table
+		bmi		addres		; address found ?
+		cmp		buffer,y	; compare with input buffer
+		beq		cmpcmd		; if equal compare whole command
+		dex					; until a difference or address is found
+notadd:	inx					; increment command table pointer
+		lda		COMTAB,x	; read next character of command from command table
+		bpl		notadd		; and skip over until address is found
+		inx					; skip over second byte of address
+		lda		buffer,y
+		cmp		#'.'		; is command abbreviated ?
+		bne		nxtcom		; no - try next command from table
+		iny					; yes
+		dex					; backup command table pointer
+		bcs		rdcom		; repeat until address found
+addres:	sta		filead+1	; save command address
+		lda		COMTAB+1,x
+		sta		filead
+		clc
+		ldx		#$00
+		jmp		(filead)	; and call it
+
+
+							; Unrecognised or Command/OS Call Not Implemented
+ERR:	jsr		OUTSTR		; output 'Com?' error
+		.byte	"Com?"
+		nop
+monrtn:	brk					; and return to OS
+
+							; Unknown COS Command
+COMERR:	jmp		(SHTVEC)	; jump to Shut File vector which normally causes a jump to ERR above
+							; this provides a route to add additional commands
+
+							; DRIVE Command - set new drive
+DRIV:	jsr		RDIBUF		; ignore leading spaces
+		iny					; increment input buffer pointer
+		pha					; save drive number
+		jsr		ENDTST		; test for end of input buffer
+		pla					; retrieve drive number
+		jsr		HEXKEY		; is it hex ?
+		bcc		drvno
+		jmp		synerr		; no - syntax error
+drvno:	sta		drive		; yes - set new drive
+USE:	rts					; USE Command - set new qualifier (does nothing in COS)
+
+							; System 1 Format Load 'unnamed file'
+SY1LOD:	jsr		LEADER		; get file leader and header
+		bcs		monrtn		; carry set - key pressed, return to monitor
+		beq		SY1LOD		; Z is set if System 2 header found - try again
+		jsr		LODADR		; set-up file load address
+		ldy		#$00
+rddata:	jsr		OSBGET		; get a byte of data from cassette
+		sta		(loadad),y	; save at load address
+		inc		loadad		; increment load address LSB
+		bne		endcmp		; carry ?
+		inc		loadad+1	; yes - increment load address MSB 
+endcmp:	ldx		#fhstar		; point X at file header start address
+		jsr		INCCMP		; and compare with file header end address
+		bne		rddata		; end of data ?
+		sec					; set carry to flag System 1 format file
+setflg:	ror		chkflg		; update bit 6 of check flags with carry
+		clc					; clear carry
+		ror		chkflg		; and clear bit 7 (clear FLOAD)
+		plp					; retrieve status register from stack
+		rts					; and return
+
+							; FLOAD Finish Loading File from Cassette Command
+FLOAD:	sec
+		ror		chkflg		; set bit 7 of check flags to prevent block checks in load
+
+							; LOAD File Command
+LOAD:	jsr		GTFLNM		; get filename
+		ldx		#loadad		; point X at load address in file parameter table
+		jsr		HXPARA		; get load address, was there one ?
+		beq		noaddr		; no
+		lda		#$FF		; yes - set bit 7
+		sta		lflag		; of the load flag
+noaddr:	jsr		ENDTST		; check for end of input buffer
+		ldx		#filead		; point X at file parameter table
+		jmp		(LODVEC)	; call load routine
+
+							; Load File from Cassette
+CLOD:	php					; save status register on stack
+		jsr		CPYPAR		; copy file parameters to file parameter table and check filename (from LOAD command has no effect)
+		php					; save filename length status on stack
+		jsr		PLYMES		; output 'Play Drive n' and wait for key press
+		plp					; retrieve status register from stack
+		beq		SY1LOD		; no filename - must be System 1 'unnamed file' format
+		lda		#$00
+		sta		blkno		; set block number=0
+		sta		blkno+1
+ldnxbl:	jsr		LODBLK		; load a block of data
+		bcc		setflg		; was that the last block ?
+		inc		blkno		; increment LSB of block number
+		inc		loadad+1	; and MSB of load address pointer
+		bne		ldnxbl		; load next block
+		clc
+		bcc		setflg		; branch always
+
+wrnxch:	jsr		OSWRCH		; output character
+		iny					; increment filename pointer
+
+							; Output Filename
+OUTNAM:	lda		temp_a,y	; load character from filename
+		cmp		#CR			; CR ?
+		bne		wrnxch		; no - output
+		jmp		outspc		; yes - output a space and return
+
+							; Load Block of Data from Cassette (System 2 'named' file)
+LODBLK:	lda		#$00
+		sta		chksum		; clear checksum
+		jsr		LEADER		; wait for inter-block gap, read **** leader
+		bcs		LODBLK+1	; key pressed ? - BRK return to monitor
+		bne		LODBLK		; error in leader - try again
+		jsr		GTNAME		; read in filename and compare
+		php					; with required filename, save status
+		jsr		GTHEAD		; read 8 bytes of header information
+		plp					; retrieve status register
+		beq		fndnam		; do filenames match ?
+		lda		bhflag		; no - get block header block flags
+		and		#$20		; mask bit 5 (clear for first block)
+		ora		mesage		; is it first block and messages enabled (0) ?
+		bne		LODBLK		; no - try next block
+		jsr		OUTNAM		; yes - output filename found
+		jsr		OSCRLF		; and space and CR
+		bne		LODBLK		; then try next block
+fndnam:	ldx		#$02		; found correct filename, now check the block
+		lda		chkflg		; are we checking block numbers ?
+		bmi		fload		; i.e. is this FLOAD ?
+blkcmp:	lda		blkno-1,x	; no - so check block numbers match
+		cmp		bhno-1,x	; block header block number
+		bcs		fndblk		; block number too high - gone too far ?
+		lda		#$05		; yes - rewind before trying again
+		jsr		CASMES		; output 'Rewind Drive n'
+		jsr		PLYMES		; output 'Play Drive n'
+fndblk:	bne		LODBLK		; incorrect block ? - try another block
+		dex					; or decrement pointer 
+		bne		blkcmp		; and check the other byte of the block number
+fload:	jsr		LODADR		; set-up data pointer
+		bit		bhflag		; block header flags ?   is there any data in this block ?
+		bvc		nodata
+		dey					; Y=$FF
+rd_blk:	iny					; read in data block
+		jsr		OSBGET		; get data byte
+		sta		(loadad),y	; and save it at file load address
+		cpy		bhlen		; compare pointer with block header length
+		bne		rd_blk		; have we read all the data bytes in this block ?
+nodata:	lda		chksum		; yes - get checksum for this data block (calculated in BGT)
+		sta		ldchk		; and save
+		jsr		OSBGET		; read final byte from block - checksum byte
+		cmp		ldchk		; and compare with calculated checksum for the block
+		beq		chk_ok		; all OK - finished
+		jsr		OUTSTR		; checksum error
+		.byte	"sum"
+		nop
+		brk					; return to monitor
+chk_ok:	rol		bhflag		; get bit 7 of block header flags into carry (last block)
+		rts					; return load block complete
+
+							; Increment the Address at X,X+1 and Compare with X+2,3
+INCCMP:	inc		$00,x		; increment LSB
+		bne		do_cmp		; carry ?
+		inc		$01,x		; increment MSB
+do_cmp:	lda		$00,x		; compare LSB
+		cmp		$02,x
+		bne		notequ		; if not equal return
+		lda		$01,x		; otherwise compare MSB
+		cmp		$03,x
+notequ:	rts					; and return
+
+							; NOMON Command - set messages off
+NOMON:	dex					; X=$FF
+
+							; MON Command - set messages on
+MON:	jsr		ENDTST		; check no parameters
+		stx		mesage		; (MON X=0) and set new status
+mesrtn:	rts
+
+							; RUN Command - load file from cassette and execute
+RUN:	jsr		LOAD		; perform load 
+		bit		chkflg		; check bit 6 of check flags, if set System 1 'unnamed' file
+		bvs		runld		; System 1 file - jump to file load address
+		jmp		(bhexec)	; System 2 file - jump to execution address
+
+							; CAT Command - catalogue cassette
+CCAT:	php					; save status register on stack
+		jsr		ENDTST		; should be no parameters
+		jsr		PLYMES		; output 'Play Drive n'
+rdhead:	jsr		LEADER		; get file leader and header
+		bcc		fnd			; no key pressed - branch
+		plp					; space bar pressed, retrieve status register
+		rts					; and return
+fnd:	beq		sys2hd		; did we find **** System 2 header ?
+		jsr		OUT2AD		; no - System 1 format, output header addresses (end address+1,start address)
+		bne		nxthed		; read another header
+sys2hd:	jsr		GTNAME		; get filename
+		jsr		GTHEAD		; and header bytes
+		jsr		OUTNAM		; output filename
+		jsr		OUT2AD		; and load and execution addresses
+		rol		bhflag		; check bit 7 of block header flags
+		bpl		nxthed		; set - not last block
+		inx					; X now pointing at block header block number 
+		jsr		OUTADR		; output block number
+		lda		$FD,x		; get block header block length (-3 + X)
+		jsr		OUTBYT		; and number of bytes-1 in block
+nxthed:	jsr		OSCRLF		; output CR LF
+		bne		rdhead		; and keep going
+
+crlf:	jmp		OSCRLF		; output CR LF and return
+
+							; Read Parameter from Input Buffer
+PARAM:	jsr		HXPARA		; get hex parameter from input buffer
+		beq		synerr		; if not hex - syntax error
+		rts					; hex - return
+
+							; GO Command - execute resident program
+GO:		ldx		#loadad		; use file load address
+		jsr		PARAM		; extract execution address
+		jsr		ENDTST		; test for end of input
+runld:	jmp		(loadad)	; execute program at specified address
+
+							; Test For End Of Input Buffer
+ENDTST:	jsr		RDIBUF		; read character from input buffer
+		cmp		#CR			; CR ?
+		beq		mesrtn		; yes - return, end found
+synerr:	jsr		OUTSTR		; no - output 'Syn?' error
+		.byte	"Syn ?"
+		nop
+		brk					; and return to monitor
+
+							; MEM memory Command - read/modify memory
+MEM:	ldx		#filead		; point X at file address
+		jsr		PARAM		; extract address from buffer
+		jsr		ENDTST		; test for end of input
+wraddr:	jsr		OSCRLF		; output CR LF
+		jsr		OUTADR		; output address
+		dex					; backup X to point at file address
+		dex
+wrdata:	lda		($00,x)		; read data from memory location
+		sta		loadad		; save it
+		jsr		OUTBYT		; output byte
+		jsr		OSRDCH		; read input channel
+		tay
+		jsr		HEXKEY		; hex key pressed ?
+		bcs		updown		; no - try up and down
+		ldy		#$04
+shift:	asl		loadad		; shift old byte one digit left
+		dey
+		bne		shift
+		ora		loadad		; OR new digit in
+		sta		($00,x)		; alter memory location contents
+		lda		#DEL		; move cursor over old byte
+		jsr		OSWRCH		; with two deletes
+		jsr		OSWRCH
+		bne		wrdata		; write out new data
+updown:	cpy		#'U'		; up key 'U' pressed ?
+		bne		down
+		inc		filead		; increment address
+		bne		wraddr		; then rewrite it
+		inc		filead+1
+		bcs		wraddr
+down:	cpy		#'V'		; down key 'V' pressed ?
+		bne		crlf		; some other key ? - output CR LF and return
+		lda		filead		; decrement address
+		bne		nodec
+		dec		filead+1
+nodec:	dec		filead
+		bcs		wraddr		; always branch to rewrite address
+
+							; System 1 Format Save
+SY1SAV:	sec					; calculate length of file
+		lda		endad		; LSB of data end address +1
+		sbc		starad		; subtract LSB of data start address
+		pha					; save LSB result on stack
+		lda		endad+1		; MSB of data end address +1
+		sbc		starad+1	; subtract MSB of data start address
+		tay					; save MSB result in Y
+		pla					; retrieve LSB result
+		clc
+		adc		sy1sta		; and add to the LSB of file start address
+		sta		sy1end		; and save as System 1 file end address
+		tya					; retrieve MSB result
+		adc		sy1sta+1	; and add to MSB
+		sta		sy1end+1	; and save MSB
+		ldy		#$04
+s1head:	lda		sy1sta-1,y	; output System 1 header addresses (sy1end,sy1sta)
+		jsr		OSBPUT		; send byte
+		dey
+		bne		s1head		; send all 4 bytes
+txdata:	lda		(starad),y	; read byte of data (file start address)
+		jsr		OSBPUT		; output byte
+		inc		starad		; increment data pointer LSB
+		bne		compar
+		inc		starad+1	; and MSB
+compar:	ldx		#sy1sta		; point at file start address
+		jsr		INCCMP		; increment file start address and compare with file end address
+		bne		txdata		; continue sending data
+		plp					; retrieve status register from stack
+		rts					; and return
+
+							; SAVE Command
+SAVE:	jsr		GTFLNM		; get filename from  buffer
+		ldx		#loadad		; point to file load address
+		jsr		PARAM		; get data start address which becomes file load address
+		ldx		#endad		; point to data end address
+		jsr		PARAM		; get data end address
+		ldx		#execad		; point to execution address
+		jsr		HXPARA		; get (optional) execution address (serves no purpose for System 1 format)
+		php					; save Z flag
+		lda		loadad		; load data start address into A and X
+		ldx		loadad+1
+		plp
+		bne		start		; is there an execution address ?
+		sta		execad		; no - use data start address
+		stx		execad+1
+start:	sta		starad		; set data start address (from load address)
+		stx		starad+1
+		jsr		ENDTST		; check for end of input buffer
+		ldx		#filead		; pointer to file parameter table
+		jmp		(SAVVEC)	; do the save
+
+							; Save File to Cassette
+CSAV:	php					; save status register on stack
+		jsr		CPYPAR		; copy file parameters to file parameter table and check filename (from SAVE command has no effect)
+		php					; save filename length=0 status
+		lda		#$06
+		jsr		CASMES		; output 'Record Drive n'
+		ldx		#$40		; set bit 6
+		jsr		HITONE		; turn high tone on for 3.4secs
+		plp					; retrieve status from filename check
+		beq		SY1SAV		; no filename - System 1 format
+		ldx		#$04
+move4:	lda		starad-1,x	; copy data start and end addresses
+		sta		starpt-1,x	; to start and end data pointers
+		dex
+		bne		move4		; copy all four bytes
+		stx		blkno		; set block number=$0000
+		stx		blkno+1
+		lda		endpt		; decrement end pointer (address +1) to get address of last byte
+		bne		no_dec		; if LSB is 0
+		dec		endpt+1		; decrement MSB
+no_dec:	dec		endpt		; decrement LSB
+		clc					; clear carry
+nxtblk:	ror		blkflg		; update bit 7 of block flag will end up at bit 5 (clear for 1st block)
+		sec
+		ldx		#$FF		; subtract start pointer from end pointer to determine block size
+		lda		endpt		; end pointer LSB
+		sbc		starpt		; start pointer LSB
+		sta		blksiz		; the number of bytes if last block
+		lda		endpt+1		; end pointer MSB
+		sbc		starpt+1	; start pointer MSB
+		php					; save the status register, if carry clear - last block
+		ror		blkflg		; update bit 7 of block flag will end up as bit 6 (clear for last block)
+		plp					; retrieve status register
+		bcc		last		; is this the last block ?
+		clc					; no - clear carry
+		beq		last		; is this a block with no data ?
+		stx		blksiz		; no - set block size to 255
+		sec					; set carry (not last block)
+last:	ror		blkflg		; update bit 7 of block flag (clear for last block)
+		inx					; X=0
+		jsr		CSVBLK		; send this block
+		inc		blkno		; increment block number
+		inc		starpt+1	; and MSB of start pointer
+		inc		loadad+1	; and MSB of load address
+		rol		blkflg		; get block flag bit 7 into carry
+		bcs		nxtblk		; if set not last block so continue
+		plp					; retrieve status register from stack
+		rts					; and return
+
+							; Save Block to Cassette
+CSVBLK:	dex					; X=$FF
+		jsr		HITONE		; turn high tone on
+		stx		chksum		; set checksum=0
+		ldy		#$04
+sendhd:	lda		#'*'		; send **** as header
+		jsr		OSBPUT
+		dey
+		bne		sendhd
+sendnm:	lda		(filead),y	; send filename
+		jsr		OSBPUT
+		iny
+		rol		a			; restore bit pattern after OSBPUT
+		cmp		#CR			; end of filename ?
+		bne		sendnm		; send whole filename
+		ldy		#$08
+sendfp:	lda		filead+1,y	; send file parameters (blkflg, blkno, blksiz, execad, loadad)
+		jsr		OSBPUT
+		dey
+		bne		sendfp		; send all 8 bytes
+		jsr		WT850		; wait 850mS after header
+		bit		blkflg		; check block flag
+		bvc		ndata		; to see if there is data in this block (bit 6 set)
+		dey					; Y=$FF
+nxtbyt:	iny					; send block of data bytes
+		lda		(starpt),y	; read byte from data pointer
+		jsr		OSBPUT		; send it
+		cpy		blksiz		; end of block ?
+		bne		nxtbyt
+ndata:	lda		chksum		; send the checksum
+		jsr		OSBPUT
+		ldx		#$00		; turn high tone off
+
+							; Switch High Tone and wait 3.4secs
+HITONE:	stx		port_a		; output X to NHITONE
+		ldx		#$04
+wait4:	jsr		WT850		; wait 850mS
+		dex
+		bne		wait4		; go around 4 times (4 x 850mS = 3.4secs)
+		rts					; and return
+
+							; Get Cassette Leader and Header
+LEADER:	bit		port_b		; test keyboard strobe line (bit 7)
+		bpl		LEADER		; wait for key release from previous OSWRCH
+nhtrst:	ldy		#$00
+		ldx		#$02
+nlead:	lda		port_b		; test keyboard strobe line
+		bpl		keyprs		; has a key been pressed ?
+		bit		port_a5		; test NHITONE (bit 7)
+		bmi		nhtrst		; wait until it is low - high tone leader detected
+		jsr		WTBIT		; wait 3.3mS
+		dey
+		bne		nlead		; go round 255 times (255 x 3.3mS ~ 840mS)
+		dex
+		bne		nlead		; go round twice (~ 1.7secs)
+keyprs:	cmp		#SPACE
+		bne		no_key		; was space key pressed ? no - continue to load
+		sec					; yes - set carry
+		rts					; and return
+no_key:	ldy		#$04		; 4 header bytes
+		jsr		GTHEDY		; get header bytes
+		ldy		#$04		; for System 2 File format these will be ****
+		lda		#'*'
+hedcmp:	cmp		fhstar-1,y	; compare
+		bne		nostar
+		dey
+		bne		hedcmp		; compare all 4 bytes
+nostar:	clc					; clear carry (no key pressed)
+rdrtn:	rts					; and return (Z=1 if System 2 **** header detected)
+
+nextch:	iny					; increment filename pointer
+
+							; Get Filename From Cassette
+GTNAME:	jsr		OSBGET		; get byte
+		sta		temp_a,y	; put it in buffer
+		cmp		#CR			; CR ?
+		bne		nextch		; no - get next character
+		ldy		#$FF		; reset filename pointer
+
+							; Compare Filenames
+NAMCMP:	iny					; increment filename pointer
+		lda		(filead),y	; compare filename with required file
+		cmp		temp_a,y
+		bne		rdrtn		; no match - return
+		cmp		#CR			; match - is it terminating CR ?
+		bne		NAMCMP		; no - compare next character
+		rts					; yes - return
+
+							; Get 8 Header Bytes
+GTHEAD:	ldy		#$08
+							; Get Y Header Bytes
+GTHEDY:	jsr		OSBGET		; get byte
+		sta		fhstar-1,y	; and save
+		dey
+		bne		GTHEDY		; do required number
+		rts					; and return
+
+							; Get Byte from Tape
+BGT:	stx		temp_x		; save X
+		php					; save status register on stack
+		ldx		#$08		; bit counter - 8 bits per byte
+high:	bit		port_a		; test cassette in (CASIN)
+		bmi		high		; wait for it to go low
+		jsr		wthalf		; half bit period wait
+rdbit:	jsr		WTBIT		; full bit period wait, 
+		asl		port_a		; then we are in the middle of the bit for sampling
+		ror		a			; rotate C into A
+		dex					; decrement bit counter
+		bne		rdbit		; do all 8 bits
+		jsr		WTBITX		; retrieve X and wait one full bit period
+		plp					; retrieve status register
+check:	pha					; save data byte
+		clc
+		adc		chksum		; add to checksum
+		sta		chksum
+		pla					; retrieve data byte
+		rts					; and return
+
+							; Wait 850mS
+WT850:	ldy		#$00
+wt255:	jsr		WTBIT		; 3.33mS wait
+		dey
+		bne		wt255		; go around 255 times (255 x 3.33mS = 850mS)
+		rts					; and return
+
+							; Set File Load Address
+LODADR:	lda		execad		; is bit 7 of execution address set ?
+		bmi		lodrtn		; if set - use current load address
+		lda		fhstar		; if clear - use file header start address as load address
+		sta		loadad
+		lda		fhstar+1
+		sta		loadad+1
+lodrtn:	rts					; and return
+
+							; Output 'Play drive n' Message
+PLYMES:	lda		#$04		; A<5
+
+							; Output Cassette Message in A
+CASMES:	ldx		#$40		; bit 6
+		stx		port_a		; enable high tone
+		bit		mesage		; are messages enabled ?
+		bne		nomes		; no - bypass message
+		cmp		#$05		; yes - output required message, which message ?
+		beq		rewind		; 5 - 'rewind'
+		bcs		record		; >5 - 'record'
+		jsr		OUTSTR		; must be <5 - 'Play'
+		.byte	"Play"
+		bne		outdrv		; followed by
+record:	jsr		OUTSTR		; 'Record'
+		.byte	"Record"
+		bne		outdrv
+rewind:	jsr		OUTSTR		; followed by
+		.byte	"Rewind"	; 'Rewind'
+		nop
+outdrv:	jsr		OUTSTR		; ' drive'
+		.byte	" drive "
+		lda		drive		; and output drive number
+		jsr		OUTDIG
+nomes:	jsr		OSRDCH		; wait for key press
+		jmp		OSCRLF		; output CR LF and return
+
+							; Put Byte To Tape
+BPT:	stx		temp_x		; save X
+		php					; save status register on stack
+		ldx		#$07		; bit counter
+		stx		port_a		; turn low tone on
+		jsr		check		; add A to checksum
+		ror		a			; backup 2 bits
+		ror		a
+wrbit:	jsr		WTBIT		; wait a bit period
+		ror		a			; put bit in bit 6 position
+		sta		port_a		; send it
+		dex
+		bpl		wrbit		; do all 8 bits
+		jsr		WTBIT
+		stx		port_a		; turn high tone on
+		plp					; retrieve X and status register
+
+							; Retrieve X and Cassette Timing Wait
+WTBITX:	ldx		temp_x		; retrieve X and
+
+							; Cassette Timing Wait for a Bit Period (3.33mS)
+WTBIT:	jsr		wthalf		; do a half wait (1.66mS) and then do it again
+wthalf:	sty		wait_y		; save Y
+		sei					; disable interrupts
+		ldy		#$48		; 72
+wait1:	dey
+		bne		wait1		; go round 72 times (72 x 5uS = 360uS)
+wait2:	dey
+		bne		wait2		; go round 256 times (256 x 5uS = 1280uS)
+		ldy		wait_y		; retrieve Y
+		rts					; and return
+
+							; Read Character From Input Channel
+RDC:	bit		port_b		; test keyboard strobe line
+		bpl		RDC			; wait for it to go high (key not pressed)
+waitlo:	lda		port_b
+		bmi		waitlo		; and then wait for it to low (key pressed)
+		cmp		#DC1		; check for copy key (control Q)
+		beq		KCOPY
+		cmp		#ETB		; check for cursor keys - ETB End of Transmission (control W, cursor up)
+		beq		keyup		; and convert to VT
+		cmp		#SOH		; SOH Start Of Header (control A, cursor left)
+		beq		keleft		; and convert to BS
+		cmp		#DC3		; DC3 Device Control 3 (control S, cursor right)
+		beq		kright		; and convert to HT
+		cmp		#SUB		; SUB Substitute (control Z, cursor down)
+		beq		kedown		; and convert to LF
+		rts					; not copy or a cursor key - return
+							; convert keyboard cursor keys to VDU codes
+keyup:	lda		#VT			; ETB becomes Vertical Tab
+		bne		KCURSR		; and use the VDU handler to action
+keleft:	lda		#BS			; SOH becomes BS BackSpace
+		bne		KCURSR		; and use the VDU handler to action
+kright:	lda		#HT			; DC3 becomes HT Horizontal Tab
+		bne		KCURSR		; and use the VDU handler to action
+kedown:	lda		#LF			; HT becomes LF LineFeed
+
+							; Handle the Cursor Key Codes
+KCURSR:	jsr		wrvdu		; use the VDU handler
+		jmp		RDC			; and get another key
+
+							; Handle the COPY Key Code
+KCOPY:	sty		temp_y		; save Y
+		php					; save status register on stack
+		ldy		cursor		; horizontal cursor position
+		cld					; make sure we're in binary mode
+		jsr		CALC		; recalculate screen cursor addresses
+		ldy		#$00		; set cursor offset to 0
+		lda		(curadr),y	; get the character at the cursor position
+		jmp		rtsyps		; and return
+
+							; Write Character to Output Channel(s)
+WRC:	jsr		PRINT		; call printer handler
+wrvdu:	php					; save status register on stack
+		pha					; save A on stack
+		cld					; make sure we're in binary mode
+		sty		temp_y		; save Y
+		jsr		VDU			; call the VDU handler
+		pla					; retrieve A from stack
+rtsyps:	ldy		temp_y		; retrieve Y
+		plp					; retrieve status register from stack
+		rts					; and return
+
+							; Printer Handler
+PRINT:	pha					; save A on stack
+		cmp		#STXX		; start printing ?
+		beq		pron		; yes - enable printing
+		cmp		#ETX		; end printing ?
+		beq		proff		; yes - disable printing
+		cmp		not_pr		; compare with character not to print
+		beq		noprnt		; match - nothing to do
+		lda		pcr			; is printer enabled ?
+		and		#$0E
+		bne		on			; yes - print
+noprnt:	pla					; no - retrieve A from stack
+		rts					; and return
+on:		pla					; yes - retrieve data byte
+prwait:	bit		dr_a		; wait for ready bit low
+		bmi		prwait
+		sta		dr_a		; then output character
+		pha					; and save for return
+		lda		pcr
+		and		#$F0		; keep control bits
+		ora		#$0C		; strobe line low
+		sta		pcr			; write to printer port control register
+		ora		#$02		; strobe line high
+		bne		prrtn		; write to printer port control register and return (always branch)
+pron:	lda		#$7F		; enable printer
+		sta		dd_a		; set all pins of printer port as outputs except PA7
+		lda		pcr			; write to printer port control register
+		and		#$F0		; keep control bits
+		ora		#$0E		; strobe line high
+prrtn:	sta		pcr			; write to printer port control register
+		pla					; retrieve A from stack
+		rts					; and return
+proff:	lda		pcr			; disable printer
+		and		#$F0		; keep control bits
+		bcs		prrtn		; and return
+tworts:	pla					; remove return address
+		pla
+		rts					; and return to previous return address
+
+							; Move the Cursor Left One Character
+CURLFT:	dey					; decrement horizontal cursor position
+		bpl		uprtn		; is it past the start of the line ?, no -return
+		ldy		#vduwid-1	; yes - set cursor position to end of line and 
+
+							; Move the Cursor Up One Line
+CURSUP:	lda		lineno		; screen current line number
+		cmp		#nlines		; top of screen ?
+		bcs		tworts		; yes - return completely can't go any higher
+		inc		lineno		; move up one line
+
+							; Subtract a Line from the Start Address of the Screen Current Line
+SUBLIN:	lda		line		; start address of screen current line
+		sbc		#vduwid-1	; subtract width of a line
+		sta		line		; update
+		bcs		uprtn		; if not carry finished
+		dec		line+1		; otherwise decrement MSB of address
+uprtn:	rts					; and return
+
+notbot:	dec		lineno		; not bottom just decrement line number
+		rts					; and return
+
+							; Move the Cursor Down One Line
+CURDWN:	ldy		#vduwid		; move cursor to end of line
+		jsr		CALC		; recalculate screen cursor addresses
+		lda		curadr		; read LSB of screen cursor address
+		sta		line		; update LSB of start address of screen current line
+		lda		crtcad		; read MSB of screen cursor CRTC address
+		sta		line+1		; update MSB of start address of screen current line
+		lda		lineno		; check linenumber
+		bne		notbot		; bottom of screen ?
+		ldy		#$0D		; yes - scroll screen up
+		sty		vduadd		; select CRTC Display Start Address (Low) Register
+		lda		line		; LSB of start address of screen current line
+		sec
+							; subtract start address of start of bottom line
+							; 80x25 VDU - $03C0			
+							; Teletext VDU - $0780
+.if vdutyp = 80 .or vdutyp = 81
+		sbc		#$80		; 80x25 VDU
+.else
+		sbc		#$C0		; Teletext VDU
+.endif
+
+		sta		vdudat		; update CRTC register
+		dey					; Y=$C
+		sty		vduadd		; select CRTC Display Start Address (High) Register
+		lda		line+1		; MSB of start address of screen current line
+		
+.if vdutyp = 80 .or vdutyp = 81
+
+		sbc		#$07		; 80x25 VDU
+.else
+		sbc		#$03		; Teletext VDU
+.endif
+
+		sta		vdudat		; update CRTC register
+		ldy		#vduwid-1
+		lda		#SPACE		; output a line of spaces to clear new bottom line
+newlin:	jsr		VDUCHR
+		dey
+		bpl		newlin
+		rts					; and return
+
+							; Calculate Screen Cursor Addresses
+CALC:	pha					; save A on stack
+		clc					; clear carry
+		tya					; Y is position of cursor on current line
+		adc		line		; add LSB of start address of screen current line
+		sta		curadr		; save as LSB of screen cursor address
+		lda		line+1		; read MSB of start address of screen current line
+		adc		#$00		; add the carry
+		sta		crtcad		; and save as the MSB of the CRTC cursor address
+		and		#$07		; add offset to MSB to produce 'real' screen address
+		ora		#>vdua		; either $04 for address in range $0400 to $07FF (Teletext VDU)
+							; or $10 for address in range $07FF to $1000 (80x25 VDU)
+		sta		curadr+1	; and save as the MSB of the 'real' cursor address
+		pla					; retrieve A from stack
+		rts					; and return
+
+							; Output Character to VDU
+VDUCHR:	jsr		CALC		; recalculate screen cursor addresses
+		sty		crtcad		; save Y (cursor) (crtcad is not being used)
+		ldy		#$00		; set cursor offset to 0
+		sta		(curadr),y	; output character to cursor address
+		ldy		crtcad		; retrieve Y (cursor)
+		rts					; and return
+
+							; Enable Screen Output			
+VDUON:	clc					; clear carry
+
+							; Disable Screen Output (carry is set on entry)
+VDUOFF:	php					; save status register on stack
+		asl		cursor		; shift carry bit into MS bit of cursor
+		plp					; without affecting other bits
+		ror		cursor
+		rts					; and return
+
+							; VDU Handler
+VDU:	cmp		#ACK		; start screen ?
+		beq		VDUON		; enable screen output and return
+		cmp		#NAK		; end screen ?
+		beq		VDUOFF		; disable screen output and return
+		ldy		cursor		; Y = cursor position on current line
+		bmi		vdurtn		; if bit 7 is set screen output is disabled, branch to return
+		cmp		#SPACE		; is it a control character ?
+		bcc		VCTRL		; yes branch
+		cmp		#DEL		; also check for delete
+		beq		VDUDEL		; and branch
+char:	jsr		VDUCHR		; must be a displayable character - write to screen and
+
+							; Handle the HT VDU Code (move cursor right)
+VDUHT:	iny					; increment cursor horizontal position
+		cpy		#vduwid		; end of line ?
+		bcc		cursr		; no - update cursor position
+		jsr		CURDWN		; yes - move cursor to the start of a new line and scroll if required
+
+							; Handle the CR VDU Code (move cursor to start of current line)
+VDUCR:	ldy		#$00		; set cursor position to start of line
+cursr:	jsr		CALC		; recalculate screen cursor addresses
+		sty		cursor		; save cursor position
+		ldy		#$0F		; set new cursor position in CRT controller
+		sty		vduadd		; select register F cursor low address
+		lda		curadr
+		sta		vdudat		; write LSB of address
+		dey
+		sty		vduadd		; select register E cursor high address
+		ldy		crtcad
+		sty		vdudat		; write MSB of address
+vdurtn:	rts					; and return
+
+							; Handle the DEL VDU Code (cursor left and clear character)
+VDUDEL:	jsr		CURLFT		; move cursor left
+		lda		#SPACE		; and overwrite with a space
+		jsr		VDUCHR
+		bpl		cursr		; then update cursor position (always branch)
+
+							; Handle VDU Control Codes
+VCTRL:	cmp		#CR			; CR Carriage Return ? 
+		beq		VDUCR		; yes - set cursor position to start of line
+		cmp		#LF			; LF LineFeed ?
+		beq		VDULF		; yes - move cursor down
+		cmp		#FF			; FF FormFeed ?
+		beq		VDUFF		; yes - clear screen and home cursor
+		cmp		#BS			; BS BackSpace ?
+		beq		VDUBS		; yes - move cursor left
+		cmp		#RS			; RS Record Separator ?
+		beq		VDURS		; yes - home cursor
+		cmp		#VT			; VT Vertical Tab ?
+		beq		VDUVT		; yes - move cursor up
+		cmp		#HT			; HT Horizontal Tab ?
+		bne		char		; no - some other control key ? - try and output it
+		bcs		VDUHT		; yes - move cursor right
+
+							; Handle the BS VDU Code (move cursor left one character)
+VDUBS:	jsr		CURLFT		; move cursor left
+		jmp		cursr		; and update cursor position
+
+							; Handle the LF VDU Code (move cursor down one line)
+VDULF:	jsr		CURDWN		; move cursor down
+		ldy		cursor		; horizontal position remains the same so retrieve it
+		jmp		cursr		; and update cursor position
+
+							; Handle the RS VDU Code (home cursor)
+VDURS:	lda		#nlines		; number of lines on screen
+		ldy		lineno		; set to top line
+		sta		lineno		; set top of screen
+movtop:	cpy		#nlines		; check cursor isn't already on top line ?
+		bcs		VDUCR		; yes - check if start of line
+		iny					; move up a line
+		jsr		SUBLIN
+		jmp		movtop		; keep going until at top of screen
+
+							; Handle the VT VDU Code (move cursor up one line)
+VDUVT:	jsr		CURSUP		; move cursor up
+		jmp		cursr		; and update cursor position
+
+							; Handle the FF VDU Code (clear screen)
+VDUFF:	lda		#SPACE		; fill VDU memory with spaces
+		ldy		#$00
+
+.if vdutyp = 80 .or vdutyp = 81	; 80x25 VDU
+clrvdu:	sta		vdua,y		; fill screen memory blocks
+		sta		vdub,y
+		sta		vduc,y
+		sta		vdud,y
+		sta		vdue,y
+		sta		vduf,y
+		sta		vdug,y
+		sta		vduh,y
+		iny
+		bne		clrvdu		; do all 256 bytes of each block
+
+.else						; Teletext VDU
+clrvdu:	sta		vdua,y		; fill screen memory blocks
+		sta		vdub,y
+		sta		vduc,y
+		sta		vdud,y
+		iny
+		bne		clrvdu		; do all 256 bytes of each block
+.endif
+
+lodreg:	sty		line		; set LSB of screen address (Y=0)
+		sty		cursor		; set VDU On and cursor to start of line
+		stx		lineno		; save X
+		
+.if vdutyp = 80 .or vdutyp = 81	; 80x25 VDU
+		ldx		#$0D		; point to end of VDU parameter table
+		ldy		#$0D		; VDU register pointer
+		nop					; packing
+		nop
+		nop
+.else						; 40x25 (Teletext) VDU
+							; determine which CRTC is present
+		ldx		#$0D		; point to end of VDU parameter table
+		lda		#$AA		; test value
+		ldy		#$0D		; VDU register pointer
+		sty		vduadd		; by testing CRTC register R13
+		sta		vdudat		; store $AA and read back
+		cmp		vdudat
+		beq		vdulod		; equal - must be an updated/enhanced type CRTC MC6845*1 or equivalent
+		ldx		#$1B		; otherwise must be an original MC6845 type - offset to 2nd table
+.endif
+
+vdulod:	sty		vduadd		; write CRTC register number (working backwards)
+		lda		VDUPAR,x	; load data from table
+		sta		vdudat		; and write to CRTC register
+		dex
+		dey
+		bpl		vdulod
+		ldx		lineno		; retrieve X
+		lda		#nlines		; number of lines on screen
+		sta		lineno		; set top line ?
+		lda		#>vdua		; ($10 or $04)
+		sta		line+1		; set MSB of screen address
+		jmp		VDUCR		; set up cursor at start of line
+
+							; COS Entry Point on Reset
+RST:	ldx		#$19		; set up 14 OS vector addresses
+tablod:	lda		VECTAB,x	; copy from vectors table
+		sta		BRKVEC,x	; to RAM vector redirections
+		dex
+		bpl		tablod		; copy the whole table
+		inx					; X=0
+		stx		mesage		; messages enabled
+		stx		drive		; set default drive to 0
+		ldx		#$40
+		stx		ddr_a		; set PA6 of port A as an output for CASOUT
+							; (note that there is no need to set-up port B ODR
+							; for the keyboard as it defaults to input)
+		lda		#LF
+		sta		not_pr		; set character not to print (LF)
+		eor		EXTROM		; test for an extension ROM
+		cmp		EXTROM+1	; is there one there ?
+		bne		norom		; no enter Acorn COS
+		jmp		EXTROM+2	; enter extension ROM at $F002
+norom:	jsr		OUTSTR		; enable screen and output start-up message
+		.byte	ACK,FF,"Acorn Cos",LF
+
+							; COS Re-entry Point on BRK
+BRK0:	ldx		#$FF
+		txs					; initialise stack pointer
+		inx					; X=0
+		stx		chkflg		; clear all file check flags
+		jsr		OSCRLF		; output a CR LF and
+syscom:	jsr		COMIN		; get command from buffer
+		jsr		COSCLI		; execute it
+		jmp		syscom		; and carry on
+
+.if vdutyp = 80
+							; 80x25 VDU Original parameters for HD46505SP-2 (newer part number is HD68B45S) CRTC (character clock is 2MHz, character time is 0.5uS)
+VDUPAR:	.byte	$7F			; Horizontal Total Register (R0) the horizontal frequency, the total number of characters displayed
+							;								 and non-displayed per line - 1: 128 (15,625kHz)
+		.byte	$50			; Horizontal Displayed Register (R1) the number of displayed characters per line: 80
+		.byte	$66			; Horizontal Sync Position Register (R2) the position (start) of the horizontal sync: x102 i.e. 51uS
+		.byte	$62			; (Horizontal) Sync Width Register (R3) bits 0-3: the width (character clocks) of the horizontal sync pulse: x2(1uS)
+							;										bits 4-7: the vertical sync pulse width in scan line times: x6 (384uS)
+		.byte	$1E			; Vertical Total Register (R4) determines the vertical frequency (in character line times - 1): 30 i.e. 31x10x64uS
+		.byte	$02			; Vertical Total Adjust Register (R5) adjustment to vertical frequency (in scan line times): 2 i.e. 2x64uS  total 19.968mS i.e. 50Hz (actually 50.08Hz)
+		.byte	$19			; Vertical Displayed Register (R6) the number of displayed character rows: 25
+		.byte	$1B			; Vertical Sync Position Register (R7) the position of the vertical sync pulse (character row times): 27 i.e. 17.28mS
+		.byte	$40			; Interlace Mode and Skew Register (R8) bits 0,1 control the raster scan mode: 0 Non-Interlace Mode
+							;										bits 4,5 sets Display Timing skew: 0 (no delay)
+							;										bits 6,7 sets Cursor skew: 1 (0.5uS delay)		
+		.byte	$09			; Maximum Scan Line Address Register (R9) the number of scan lines per character row - 1 (including spacing): 9 i.e. 10 scan lines/character
+		.byte	$68			; Cursor Start Register (R10) bits 0-4 cursor start scan line: 8
+							;							  bit 5 sets the blink frequency: 1 (1/32 of vertical field rate)
+							;							  bit 6 blink enable: 1 (cursor blink enabled)
+		.byte	$09			; Cursor End Register (R11) the cursor end scan line: 9 i.e. underlined cursor
+		.byte	$10			; Start Address Register H (R12) address of screen RAM: $10
+		.byte	$00			; Start Address Register L (R13) address of screen RAM: $00 i.e. $1000
+
+		nop					; packing
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+.endif
+
+.if vdutyp = 81
+							; 80x25 VDU Modified parameters for HD46505SP-2 (newer part number is HD68B45S) CRTC (character clock is 2MHz, character time is 0.5uS)
+VDUPAR:	.byte	$7F			; Horizontal Total Register (R0) the horizontal frequency, the total number of characters displayed
+							;								 and non-displayed per line - 1: 128 (15,625kHz)
+		.byte	$50			; Horizontal Displayed Register (R1) the number of displayed characters per line: 80
+		.byte	$60			; Horizontal Sync Position Register (R2) the position (start) of the horizontal sync: x96 i.e. 48uS
+		.byte	$28			; (Horizontal) Sync Width Register (R3) bits 0-3: the width (character clocks) of the horizontal sync pulse: x8(4uS)
+							;										bits 4-7: the vertical sync pulse width in scan line times: x2 (128uS)
+		.byte	$1E			; Vertical Total Register (R4) determines the vertical frequency (in character line times - 1): 30 i.e. 31x10x64uS
+		.byte	$02			; Vertical Total Adjust Register (R5) adjustment to vertical frequency (in scan line times): 2 i.e. 2x64uS  total 19.968mS i.e. 50Hz (actually 50.08Hz)
+		.byte	$19			; Vertical Displayed Register (R6) the number of displayed character rows: 25
+		.byte	$1B			; Vertical Sync Position Register (R7) the position of the vertical sync pulse (character row times): 27 i.e. 17.28mS
+		.byte	$40			; Interlace Mode and Skew Register (R8) bits 0,1 control the raster scan mode: 0 Non-Interlace Mode
+							;										bits 4,5 sets Display Timing skew: 0 (no delay)
+							;										bits 6,7 sets Cursor skew: 1 (0.5uS delay)		
+		.byte	$09			; Maximum Scan Line Address Register (R9) the number of scan lines per character row - 1 (including spacing): 9 i.e. 10 scan lines/character
+		.byte	$68			; Cursor Start Register (R10) bits 0-4 cursor start scan line: 8
+							;							  bit 5 sets the blink frequency: 1 (1/32 of vertical field rate)
+							;							  bit 6 blink enable: 1 (cursor blink enabled)
+		.byte	$09			; Cursor End Register (R11) the cursor end scan line: 9 i.e. underlined cursor
+		.byte	$10			; Start Address Register H (R12) address of screen RAM: $10
+		.byte	$00			; Start Address Register L (R13) address of screen RAM: $00 i.e. $1000
+
+		nop					; packing
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+.endif
+
+.if vdutyp = 40
+							; 40x25 (Teletext) VDU Parameters for an updated/enhanced MC6845*1 CRTC or better (character clock is 1MHz, character time is 1uS)
+VDUPAR:	.byte	$3F			; Horizontal Total Register (R0) the horizontal frequency, the total number of characters displayed
+							;								 and non-displayed per line - 1: 64 (15,625kHz)
+		.byte	$28			; Horizontal Displayed Register (R1) the number of displayed characters per line: 40
+		.byte	$33			; Horizontal Sync Position Register (R2) the position (start) of the horizontal sync: x51 i.e. 51uS
+		.byte	$44			; (Horizontal) Sync Width Register (R3) bits 0-3: the width (character clocks) of the horizontal sync pulse: x4(4uS)
+							;									    bits 4-7: the vertical sync pulse width in scan line times: x4 (256uS)
+		.byte	$1E			; Vertical Total Register (R4) determines the vertical frequency (in character line times - 1): 30 i.e. 31x10x64uS
+		.byte	$02			; Vertical Total Adjust Register (R5) adjustment to vertical frequency (in scan line times): 2 i.e. 2x64uS  total 19.968mS i.e. 50Hz (actually 50.08Hz)
+		.byte	$19			; Vertical Displayed Register (R6) the number of displayed character rows: 25
+		.byte	$1B			; Vertical Sync Position Register (R7) the position of the vertical sync pulse (character row times): 27 i.e. 17.28mS
+		.byte	$03			; Interlace Mode Register (R8) bits 0,1 control the raster scan mode: 3 Interlace Sync and Video Mode
+		.byte	$12			; Maximum Scan Line Address Register (R9) the number of scan lines per character row - 1 (including spacing): 18 i.e. 20 scan lines/character (10 interlaced)
+		.byte	$72			; Cursor Start Register (R10) bits 0-4 cursor start scan line: 18
+							;							  bit 5 sets the blink frequency: 1 (1/32 of vertical field rate)
+							;							  bit 6 blink enable: 1 (cursor blink enabled)
+		.byte	$13			; Cursor End Register (R11) the cursor end scan line: 19 i.e. underlined cursor
+		.byte	$04			; Start Address Register H (R12) address of screen RAM: 4
+		.byte	$00			; Start Address Register L (R13) address of screen RAM: 0 i.e. $0400
+
+							; 40x25 (Teletext) VDU Parameters for an original MC6845 CRTC (character clock is 1MHz, character time is 1uS)
+		.byte	$3F			; Horizontal Total Register (R0) - the horizontal frequency, the total number of characters displayed
+							;								   and non-displayed per line - 1: 63 i.e. 64 (15,625kHz)
+		.byte	$28			; Horizontal Displayed Register (R1) - the number of displayed characters per line: 40
+		.byte	$33			; Horizontal Sync Position Register (R2) - the position (start) of the horizontal sync: x51 i.e. 51uS
+		.byte	$04			; (Horizontal) Sync Width Register (R3) - the width (in character clocks) of the horizontal sync pulse: x4 (4uS)
+		.byte	$1E			; Vertical Total Register (R4) determines the vertical frequency (in character line times - 1): 30, i.e. 31x10x64uS
+		.byte	$02			; Vertical Total Adjust Register (R5) adjustment to vertical frequency (in scan line times): 2 i.e. 2x64uS  total 19.968mS i.e. 50Hz (actually 50.08Hz)
+		.byte	$19			; Vertical Displayed Register (R6) the number of displayed character rows: 25
+		.byte	$1B			; Vertical Sync Position Register (R7) the position of the vertical sync pulse (in character row times): 27 i.e. 17.28mS
+		.byte	$00			; Interlace Mode Register (R8) controls the raster scan mode: 0 Normal Sync (non-interlace)
+		.byte	$09			; Maximum Scan Line Address Register (R9) the number of scan lines per character row - 1 (including spacing): 9 i.e. 10 scan lines/character
+		.byte	$68			; Cursor Start Register (R10) bits 0-4 cursor start scan line: 8
+							;							  bit 5 sets the blink frequency: 1 (1/32 of vertical field rate)
+							;							  bit 6 blink enable: 1 (cursor blink enabled)
+		.byte	$09			; Cursor End Register (R11) the cursor end scan line: 9 i.e. underlined cursor
+		.byte	$04			; Start Address Register H (R12) address of screen RAM: 4
+		.byte	$00			; Start Address Register L (R13) address of screen RAM: 0 i.e. $0400
+.endif
+
+								; Table Of OS Call Vectors
+VECTAB:	.byte	<BRK0,>BRK0		; vector to BRK routine (re-enters COS)
+		.byte	<ERR,>ERR		; vector to IRQ handler (displays Com? error message)
+		.byte	<COSCLI,>COSCLI	; vector to COS Command Line Interpreter
+		.byte	<WRC,>WRC		; vector to write character
+		.byte	<RDC,>RDC		; vector to read character
+		.byte	<CLOD,>CLOD		; vector to cassette load
+		.byte	<CSAV,>CSAV		; vector to cassette save
+		.byte	<ERR,>ERR		; vector to read arguments (displays Com? error message)
+		.byte	<ERR,>ERR		; vector to set arguments (displays Com? error message)
+		.byte	<BGT,>BGT		; vector to get byte from cassette
+		.byte	<BPT,>BPT		; vector to put byte to cassette
+		.byte	<ERR,>ERR		; vector to find file (displays Com? error message)
+		.byte	<ERR,>ERR		; vector to shut file (displays Com? error message)
+		.byte	<ERR,>ERR		; vector to ECONET (displays Com? error message)
+
+							; IRQ Handler Entry Point
+IRQ:	sta		irqa		; save A
+		pla					; retrieve the status register
+		pha					; and put it back on the stack
+		and		#$10		; which interrupt was it, IRQ or BRK ?
+		bne		brkset
+		lda		irqa		; IRQ - retrieve A
+		pha					; and save on stack
+		jmp		(IRQVEC)	; jump to the IRQ vector
+brkset:	lda		irqa		; BRK - retrieve A
+		plp					; get a copy of the status register from the stack
+		php
+		jmp		(BRKVEC)	; and jump to the BRK vector
+
+							; NMI Handler Entry Point
+NMI:	pha					; save accumulator on stack
+		jmp		(NMIVEC)	; jump to NMI vector (not defined by COS)
+OSSHUT:	jmp		(SHTVEC)	; OS Call:	SHUT file
+OSFIND:	jmp		(FNDVEC)	; OS Call:	FIND file
+OSBPUT:	jmp		(BPTVEC)	; OS Call:	PUT Byte to open file
+OSBGET:	jmp		(BGTVEC)	; OS Call:	GET Byte from open file
+OSSTAR:	jmp		(STRVEC)	; OS Call:	SeT ARguments
+OSRDAR:	jmp		(RDRVEC)	; OS Call:	ReaD ARguments
+OSSAVE:	jmp		(SAVVEC)	; OS Call:	SAVE program
+OSLOAD:	jmp		(LODVEC)	; OS Call:	LOAD program
+OSRDCH:	jmp		(RDCVEC)	; OS Call:	ReaD byte from input CHannel
+OSECHO:	jsr		OSRDCH		; OS Call:	ECHO byte from input channel to output channel
+OSASCI:	cmp		#CR			; OS Call:	writes character to output channel, if CR outputs LF as well
+		bne		OSWRCH		; if not CR - output the character
+OSCRLF:	lda		#LF			; OS Call:	writes CR LF to output channel
+		jsr		OSWRCH		; if CR - output LF
+		lda		#CR			; and then output CR
+OSWRCH:	jmp		(WRCVEC)	; OS Call:	WRite Character to output CHannel
+OSCCLI:	jmp		(COMVEC)	; OS Call:	execute command in input buffer
+
+		.byte	<NMI,>NMI	; Processor NMI Vector
+		.byte	<RST,>RST	; Processor Reset Vector
+		.byte	<IRQ,>IRQ	; Processor IRQ Vector
