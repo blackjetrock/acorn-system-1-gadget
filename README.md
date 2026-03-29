@@ -14,5 +14,11 @@ expansion bus of the System One
   come from a host computer if the USB CLI is used, or a battery power pack for portability.
 
 
+
 ![IMG_20260319_062747278](https://github.com/user-attachments/assets/3a9ac897-2f96-40ce-a71c-dbb2aa8ba083)
 
+On a system 1 you can load a slightly modified COS and BASIC into memory and run it:
+
+<img width="728" height="443" alt="Screenshot_20260329_220507" src="https://github.com/user-attachments/assets/b719f6a5-572f-42ce-ab84-ef6e2791803c" />
+
+The COS is modified to move the 6522 into RAM so that the keyboard can be driven from the USB CLI. The screen is captured by reading screen memory and also emulating som eof the functions of the 6845 CRT controller.
