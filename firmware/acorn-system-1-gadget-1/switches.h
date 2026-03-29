@@ -46,7 +46,7 @@
 
 // Original type display layout. Wider character areas, and decimal point
 // squashed between characters
-#define ORIGINAL_CHARACTERS    1
+#define ORIGINAL_CHARACTERS    0
 
 // Modern font is stabdard 5x7 font. Not modern is the original font.
 #define MODERN_FONT            0

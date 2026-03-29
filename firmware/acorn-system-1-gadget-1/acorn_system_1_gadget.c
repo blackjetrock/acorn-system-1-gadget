@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// Acorn System 1 Memiory Emulator
+// Acorn System 1 Memory Emulator
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -317,6 +317,33 @@ void cli_display_program_slot(void)
   display_ram_at(flash_slot_contents+parameter*FLASH_PROGRAM_SLOT_SIZE);
 
   printf("\n\n");
+}
+
+
+void cli_get_vdu(void)
+{
+  // Display the VDU screen area
+  //
+
+  printf("\n/--------------------------------------------------------------------------------\\");
+  
+  for(int i=0; i< 2000; i++)
+    {
+      if( (i % 80) == 0 )
+        {
+          if( i != 0 )
+            {
+              printf("|");
+            }
+          
+          printf("\n|");
+        }
+      
+      printf("%c", mem_data[0x1000+i]);
+    }
+
+  printf("|\n\\--------------------------------------------------------------------------------/");
+  printf("\n");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1032,6 +1059,11 @@ SERIAL_COMMAND serial_cmds[] =
       'L',
       "Load binary file",
       cli_read_file,
+    },
+    {
+      'v',
+      "Get VDU data",
+      cli_get_vdu,
     },
     {
       'S',
