@@ -1111,7 +1111,7 @@ void cli_dump_trace(void)
 
 void cli_read_file(void)
 {
-  read_binary_file("retrofest.bin", 0x8000);
+  read_binary_file("retrofest26.bin", 0x8000);
 }
 
 void cli_load_monitor(void)

@@ -5672,7 +5672,7 @@ LOAD /usr/lib/gcc/arm-none-eabi/15.2.0/../../../../arm-none-eabi/lib/thumb/v8-m.
                                   0xc (size before relaxing)
  .rodata.cli_read_file.str1.4
                 0x2001b6dc        0x0 CMakeFiles/acorn_system_1_gadget.dir/acorn_system_1_gadget.c.o
-                                  0xe (size before relaxing)
+                                 0x10 (size before relaxing)
  .rodata.cli_load_monitor.str1.4
                 0x2001b6dc        0x0 CMakeFiles/acorn_system_1_gadget.dir/acorn_system_1_gadget.c.o
                                   0xc (size before relaxing)
